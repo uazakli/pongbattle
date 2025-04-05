@@ -26,9 +26,62 @@ let isMobileDevice = false;
     console.log('Device detected:', isMobileDevice ? 'Mobile' : 'Desktop');
 })();
 
+// Oyun alanını mobil cihaza göre ölçeklendir
+function resizeGameCanvas() {
+    if (!isMobileDevice) return; // Sadece mobil cihazlarda ölçeklendir
+    
+    const canvas = document.getElementById('pong');
+    if (!canvas) return;
+    
+    const gameContainer = document.getElementById('game');
+    if (!gameContainer) return;
+    
+    // Ekran genişliğini al
+    const screenWidth = window.innerWidth;
+    const screenHeight = window.innerHeight;
+    
+    // Canvas'ın orijinal boyutları
+    const originalWidth = 800; // Varsayılan genişlik
+    const originalHeight = 500; // Varsayılan yükseklik
+    
+    // Ölçeklendirme oranını hesapla (ekrana sığacak şekilde)
+    let scale = Math.min(
+        (screenWidth * 0.95) / originalWidth,
+        (screenHeight * 0.7) / originalHeight
+    );
+    
+    // Minimum ölçek sınırı
+    scale = Math.max(scale, 0.5);
+    
+    // Yeni boyutları hesapla
+    const newWidth = Math.floor(originalWidth * scale);
+    const newHeight = Math.floor(originalHeight * scale);
+    
+    // Canvas boyutlarını güncelle
+    canvas.style.width = newWidth + 'px';
+    canvas.style.height = newHeight + 'px';
+    
+    // Canvas'ın çizim boyutlarını değiştirme (sadece görüntüleme boyutu değişsin)
+    // Bu, oyun mantığının aynı kalmasını sağlar
+    
+    // Oyun konteynerini düzenle
+    gameContainer.style.maxWidth = newWidth + 'px';
+    gameContainer.style.margin = '0 auto';
+    
+    console.log(`Canvas resized for mobile: ${newWidth}x${newHeight}, scale: ${scale}`);
+}
+
 // DOM yüklendiğinde
 document.addEventListener('DOMContentLoaded', function() {
     console.log('DOM loaded');
+    
+    // Mobil cihazlar için ölçeklendirme yap
+    if (isMobileDevice) {
+        resizeGameCanvas();
+        
+        // Ekran döndürüldüğünde veya boyutu değiştiğinde yeniden ölçeklendir
+        window.addEventListener('resize', resizeGameCanvas);
+    }
     
     // Nickname formu
     const nicknameForm = document.getElementById('nicknameForm');
@@ -275,14 +328,18 @@ function drawGame(state) {
     const canvas = document.getElementById('pong');
     const ctx = canvas.getContext('2d');
     
+    // Canvas'ın çizim boyutlarını al
+    const canvasWidth = canvas.width;
+    const canvasHeight = canvas.height;
+    
     // Ekranı temizle
     ctx.fillStyle = 'black';
-    ctx.fillRect(0, 0, canvas.width, canvas.height);
+    ctx.fillRect(0, 0, canvasWidth, canvasHeight);
     
     // Raketleri çiz
     ctx.fillStyle = 'white';
     ctx.fillRect(20, state.paddles.left.y, 10, 100);
-    ctx.fillRect(canvas.width - 30, state.paddles.right.y, 10, 100);
+    ctx.fillRect(canvasWidth - 30, state.paddles.right.y, 10, 100);
     
     // Topu çiz
     ctx.fillRect(state.ball.x - 5, state.ball.y - 5, 10, 10);
@@ -290,13 +347,13 @@ function drawGame(state) {
     // Skoru çiz
     ctx.font = '30px Arial';
     ctx.textAlign = 'center';
-    ctx.fillText(`${state.score.left} - ${state.score.right}`, canvas.width/2, 50);
+    ctx.fillText(`${state.score.left} - ${state.score.right}`, canvasWidth/2, 50);
     
     // Orta çizgiyi çiz
     ctx.setLineDash([10, 10]);
     ctx.beginPath();
-    ctx.moveTo(canvas.width/2, 0);
-    ctx.lineTo(canvas.width/2, canvas.height);
+    ctx.moveTo(canvasWidth/2, 0);
+    ctx.lineTo(canvasWidth/2, canvasHeight);
     ctx.strokeStyle = 'white';
     ctx.stroke();
     
@@ -418,6 +475,12 @@ socket.on('ready-status', (data) => {
 socket.on('game-start', (state) => {
     waitingForOpponent = false;
     gameStarted = true;
+    
+    // Mobil cihazlarda ölçeklendirmeyi kontrol et
+    if (isMobileDevice) {
+        resizeGameCanvas();
+    }
+    
     drawGame(state);
     addChatMessage('System', 'Game started! Good luck!');
 });

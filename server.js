@@ -45,21 +45,27 @@ io.on("connection", (socket) => {
   console.log("New connection:", socket.id);
 
   socket.on("set-nickname", (nickname) => {
+    // Nickname'i temizle ve kontrol et
+    nickname = nickname.trim();
+    if (!nickname || nickname.length > 15) {
+      socket.emit('error', 'Invalid nickname');
+      return;
+    }
+    
     if (nicknames.has(nickname)) {
       socket.emit('nickname-taken');
       return;
     }
     
     nicknames.add(nickname);
-    players.set(socket.id, { 
-      id: socket.id,
-      nickname: nickname,
-      roomId: null,
-      ready: false
-    });
+    const player = players.get(socket.id) || { id: socket.id };
+    player.nickname = nickname;
+    players.set(socket.id, player);
     
-    socket.emit('nickname-accepted');
-    console.log(`Player ${nickname} (${socket.id}) joined`);
+    console.log(`Player ${socket.id} set nickname to: ${nickname}`);
+    
+    // Nickname kabul edildi olayını gönder
+    socket.emit('nickname-accepted', nickname);
   });
 
   socket.on("join-random", () => {
@@ -90,21 +96,39 @@ io.on("connection", (socket) => {
     if (!player) return;
     
     if (player.roomId) {
-      socket.emit('error-message', 'You are already in a game');
+      socket.emit('error-message', 'You are already in a room');
       return;
     }
     
+    const roomId = generateRoomId();
     const roomCode = generateRoomCode();
     
-    rooms.set(roomCode, {
-      id: roomCode,
+    rooms.set(roomId, {
+      id: roomId,
+      code: roomCode,
       players: [socket.id],
-      gameState: null,
-      started: false
+      gameStarted: false,
+      readyPlayers: 0,
+      gameInterval: null,
+      ball: {
+        x: 400,
+        y: 250,
+        radius: 10,
+        dx: 5,
+        dy: 0
+      },
+      paddles: {
+        left: { y: 200 },
+        right: { y: 200 }
+      },
+      score: {
+        left: 0,
+        right: 0
+      }
     });
     
-    player.roomId = roomCode;
-    socket.join(roomCode);
+    player.roomId = roomId;
+    socket.join(roomId);
     
     socket.emit('room-created', roomCode);
     console.log(`Room created: ${roomCode} by ${player.nickname}`);
@@ -209,6 +233,57 @@ io.on("connection", (socket) => {
     if (player) {
       nicknames.delete(player.nickname);
       players.delete(socket.id);
+    }
+  });
+
+  // Raket hareketi olayını dinle
+  socket.on('paddleMove', function(data) {
+    const player = players.get(socket.id);
+    if (!player) {
+        console.log('Player not found for paddle move:', socket.id);
+        return;
+    }
+    
+    if (!player.roomId) {
+        console.log('Player not in a room:', socket.id);
+        return;
+    }
+    
+    const room = rooms.get(player.roomId);
+    if (!room) {
+        console.log('Room not found:', player.roomId);
+        return;
+    }
+    
+    if (!room.gameStarted) {
+        console.log('Game not started in room:', player.roomId);
+        return;
+    }
+    
+    // Hangi oyuncunun raketini güncellediğimizi belirle
+    const side = player.side; // 'left' veya 'right'
+    
+    // Raket pozisyonunu güncelle
+    if (room.paddles && room.paddles[side]) {
+        room.paddles[side].y = data.y;
+        console.log(`Player ${socket.id} (${side}) moved paddle to y:${data.y}`);
+    } else {
+        // Eğer paddles nesnesi yoksa oluştur
+        if (!room.paddles) {
+            room.paddles = {
+                left: { y: 200 },
+                right: { y: 200 }
+            };
+        }
+        
+        // Eğer belirli taraf yoksa oluştur
+        if (!room.paddles[side]) {
+            room.paddles[side] = { y: 200 };
+        }
+        
+        // Şimdi güncelle
+        room.paddles[side].y = data.y;
+        console.log(`Created and updated paddle ${side} to y:${data.y}`);
     }
   });
 });
@@ -367,3 +442,62 @@ server.listen(PORT, () => {
 app.get('/', (req, res) => {
     res.sendFile(path.join(__dirname, 'public', 'index.html'));
 });
+
+// Oyun durumunu güncelle
+function updateGameState(roomId) {
+    const room = rooms.get(roomId);
+    if (!room || !room.gameStarted) return;
+    
+    // Top hareketini güncelle
+    room.ball.x += room.ball.dx;
+    room.ball.y += room.ball.dy;
+    
+    // Üst ve alt duvar çarpışmaları
+    if (room.ball.y - room.ball.radius < 0 || room.ball.y + room.ball.radius > 500) {
+        room.ball.dy = -room.ball.dy;
+    }
+    
+    // Sol paddle çarpışması
+    if (room.ball.x - room.ball.radius < 20 &&
+        room.ball.y > room.paddles.left.y &&
+        room.ball.y < room.paddles.left.y + 100) {
+        
+        room.ball.dx = -room.ball.dx * 1.1; // Hızı artır
+        
+        // Top açısını değiştir
+        const hitPosition = (room.ball.y - room.paddles.left.y) / 100;
+        room.ball.dy = (hitPosition - 0.5) * 10;
+    }
+    
+    // Sağ paddle çarpışması
+    if (room.ball.x + room.ball.radius > 780 &&
+        room.ball.y > room.paddles.right.y &&
+        room.ball.y < room.paddles.right.y + 100) {
+        
+        room.ball.dx = -room.ball.dx * 1.1; // Hızı artır
+        
+        // Top açısını değiştir
+        const hitPosition = (room.ball.y - room.paddles.right.y) / 100;
+        room.ball.dy = (hitPosition - 0.5) * 10;
+    }
+    
+    // Sayı kontrolü
+    if (room.ball.x - room.ball.radius < 0) {
+        // Sağ oyuncu sayı aldı
+        room.score.right++;
+        pointScored(roomId, room.players[1]);
+    } else if (room.ball.x + room.ball.radius > 800) {
+        // Sol oyuncu sayı aldı
+        room.score.left++;
+        pointScored(roomId, room.players[0]);
+    }
+    
+    // Oyun durumunu istemcilere gönder
+    const gameState = {
+        ball: room.ball,
+        paddles: room.paddles,
+        score: room.score
+    };
+    
+    io.to(roomId).emit('game-state', gameState);
+}

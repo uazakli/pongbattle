@@ -19,6 +19,13 @@ let lastBallPosition = { x: 0, y: 0 };
 const hitSound = new Audio('/sounds/hit.mp3');
 const pointSound = new Audio('/sounds/point.mp3');
 
+// Cihaz tipini tespit et
+let isMobileDevice = false;
+(function detectDevice() {
+    isMobileDevice = /Android|webOS|iPhone|iPad|iPod|BlackBerry|IEMobile|Opera Mini/i.test(navigator.userAgent);
+    console.log('Device detected:', isMobileDevice ? 'Mobile' : 'Desktop');
+})();
+
 // DOM yüklendiğinde
 document.addEventListener('DOMContentLoaded', function() {
     console.log('DOM loaded');
@@ -129,6 +136,42 @@ document.addEventListener('DOMContentLoaded', function() {
         
         lastMouseY = mouseY;
     });
+    
+    // Mobil cihazlar için dokunmatik desteği ekle
+    if (isMobileDevice) {
+        console.log('Adding touch support for mobile device');
+        
+        canvas.addEventListener('touchmove', function(e) {
+            if (!gameStarted && !waitingForOpponent) return;
+            
+            e.preventDefault(); // Sayfanın kaydırılmasını engelle
+            
+            // Dokunmatik pozisyonu al
+            const rect = canvas.getBoundingClientRect();
+            const touch = e.touches[0];
+            const touchY = touch.clientY - rect.top;
+            
+            // Paddle pozisyonunu sunucuya gönder
+            socket.emit('paddle-move', touchY);
+            
+            lastMouseY = touchY; // Aynı değişkeni kullanabiliriz
+            
+            console.log('Touch move: ' + touchY);
+        }, { passive: false });
+        
+        // Mobil cihazlar için bilgi mesajı
+        const gameInfo = document.createElement('div');
+        gameInfo.className = 'mobile-info';
+        gameInfo.textContent = 'Swipe up and down to control the paddle';
+        gameInfo.style.position = 'absolute';
+        gameInfo.style.bottom = '10px';
+        gameInfo.style.left = '0';
+        gameInfo.style.right = '0';
+        gameInfo.style.textAlign = 'center';
+        gameInfo.style.color = 'white';
+        gameInfo.style.fontSize = '14px';
+        document.getElementById('game').appendChild(gameInfo);
+    }
     
     // Canvas tıklama - hazır olma ve sayı sonrası devam etme
     canvas.addEventListener('click', function() {

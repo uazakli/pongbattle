@@ -3,4 +3,4 @@ Allow: /
 Disallow: /admin/
 Disallow: /private/
 
-Sitemap: https://yourpongsite.com/sitemap.xml 
+Sitemap: https://pongbattle.io/sitemap.xml 

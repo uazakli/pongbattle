@@ -2,9 +2,9 @@
 <html lang="en">
 <head>
     <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <meta name="description" content="Play multiplayer Pong online with friends at PongBattle.io. Control your paddle with mouse movements, create private rooms, and chat with your opponent in this classic arcade game.">
-    <meta name="keywords" content="pong, online pong, multiplayer pong, browser game, retro game, ping pong, arcade game, pongbattle">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <meta name="description" content="Play multiplayer Pong online with friends at PongBattle.io. Control your paddle with mouse movements or touch, create private rooms, and chat with your opponent in this classic arcade game.">
+    <meta name="keywords" content="pong, online pong, multiplayer pong, browser game, retro game, ping pong, arcade game, pongbattle, mobile pong">
     <meta name="author" content="PongBattle.io">
     
     <!-- Open Graph / Facebook -->
@@ -22,7 +22,7 @@
     <meta property="twitter:image" content="https://pongbattle.io/images/pong-preview.jpg">
     
     <title>PongBattle.io | Online Multiplayer Pong | Play with Friends</title>
-    <link rel="canonical" href="https://pongbattle.io/">
+    <link rel="canonical" href="http://localhost:3000/">
     <link rel="icon" href="/favicon.ico">
     
     <script type="application/ld+json">
@@ -63,6 +63,7 @@
             font-family: Arial, sans-serif;
             margin: 0;
             padding: 20px;
+            touch-action: manipulation;
         }
         
         #login, #lobby, #game {
@@ -190,6 +191,39 @@
         .tabContent.active {
             display: block;
         }
+        
+        /* Mobil uyumluluk için ek stiller */
+        @media (max-width: 800px) {
+            body {
+                padding: 10px;
+            }
+            
+            input, button {
+                font-size: 16px;
+                padding: 12px;
+                margin: 8px;
+            }
+            
+            h1 {
+                font-size: 24px;
+            }
+            
+            h2 {
+                font-size: 20px;
+            }
+            
+            #chatContainer {
+                height: 120px;
+            }
+            
+            .tab {
+                padding: 8px 16px;
+            }
+            
+            #gameControls {
+                margin-bottom: 10px;
+            }
+        }
     </style>
 </head>
 <body>
@@ -236,8 +270,10 @@
             <button id="joinRoomBtn">Join Room</button>
         </div>
         
-        <p>Controls: Move your mouse up and down to control the paddle</p>
+        <p id="controlsInfo">Controls: Move your mouse up and down to control the paddle</p>
     </div>
+
+    <canvas id="gameCanvas" width="800" height="500" style="display: none;"></canvas>
 
     <div id="game">
         <div id="gameContainer">
@@ -257,7 +293,7 @@
     </div>
 
     <footer>
-        <p>&copy; 2023 PongBattle.io. All rights reserved.</p>
+        <p>&copy; 2025 PongBattle.io. All rights reserved.</p>
         <p><a href="/privacy.html">Privacy Policy</a> | <a href="/terms.html">Terms of Service</a></p>
     </footer>
 

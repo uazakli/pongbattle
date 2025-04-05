@@ -26,15 +26,18 @@ let isMobileDevice = false;
     console.log('Device detected:', isMobileDevice ? 'Mobile' : 'Desktop');
 })();
 
-// Oyun alanını mobil cihaza göre ölçeklendir
-function resizeGameCanvas() {
+// Mobil kontrol hassasiyeti çarpanı
+const MOBILE_SENSITIVITY = 2.0; // 1 birim hareket için 2 birim tepki
+
+// Oyun alanını ve chat alanını mobil cihaza göre ölçeklendir
+function resizeGameElements() {
     if (!isMobileDevice) return; // Sadece mobil cihazlarda ölçeklendir
     
     const canvas = document.getElementById('pong');
-    if (!canvas) return;
-    
+    const chatContainer = document.getElementById('chatContainer');
     const gameContainer = document.getElementById('game');
-    if (!gameContainer) return;
+    
+    if (!canvas || !chatContainer || !gameContainer) return;
     
     // Ekran genişliğini al
     const screenWidth = window.innerWidth;
@@ -61,14 +64,36 @@ function resizeGameCanvas() {
     canvas.style.width = newWidth + 'px';
     canvas.style.height = newHeight + 'px';
     
-    // Canvas'ın çizim boyutlarını değiştirme (sadece görüntüleme boyutu değişsin)
-    // Bu, oyun mantığının aynı kalmasını sağlar
-    
     // Oyun konteynerini düzenle
     gameContainer.style.maxWidth = newWidth + 'px';
     gameContainer.style.margin = '0 auto';
     
-    console.log(`Canvas resized for mobile: ${newWidth}x${newHeight}, scale: ${scale}`);
+    // Chat konteynerini düzenle
+    chatContainer.style.maxWidth = newWidth + 'px';
+    chatContainer.style.margin = '10px auto';
+    
+    // Chat mesajları alanını düzenle
+    const chatMessages = document.getElementById('chatMessages');
+    if (chatMessages) {
+        chatMessages.style.maxHeight = (newHeight * 0.3) + 'px'; // Chat yüksekliği oyun yüksekliğinin %30'u
+        chatMessages.style.fontSize = Math.max(12, Math.floor(14 * scale)) + 'px'; // Font boyutunu ölçeklendir
+    }
+    
+    // Chat giriş alanını düzenle
+    const chatInput = document.getElementById('chatInput');
+    if (chatInput) {
+        chatInput.style.fontSize = Math.max(12, Math.floor(14 * scale)) + 'px';
+        chatInput.style.padding = Math.floor(5 * scale) + 'px';
+    }
+    
+    // Chat gönder butonunu düzenle
+    const chatSubmit = document.querySelector('#chatForm button');
+    if (chatSubmit) {
+        chatSubmit.style.fontSize = Math.max(12, Math.floor(14 * scale)) + 'px';
+        chatSubmit.style.padding = Math.floor(5 * scale) + 'px ' + Math.floor(10 * scale) + 'px';
+    }
+    
+    console.log(`Game elements resized for mobile: ${newWidth}x${newHeight}, scale: ${scale}`);
 }
 
 // DOM yüklendiğinde
@@ -77,10 +102,22 @@ document.addEventListener('DOMContentLoaded', function() {
     
     // Mobil cihazlar için ölçeklendirme yap
     if (isMobileDevice) {
-        resizeGameCanvas();
+        resizeGameElements(); // resizeGameCanvas yerine resizeGameElements kullanıyoruz
         
         // Ekran döndürüldüğünde veya boyutu değiştiğinde yeniden ölçeklendir
-        window.addEventListener('resize', resizeGameCanvas);
+        window.addEventListener('resize', resizeGameElements);
+        
+        // Mobil cihazlar için CSS ayarlamaları
+        document.body.classList.add('mobile-device');
+        
+        // Meta viewport etiketini kontrol et ve güncelle
+        let viewport = document.querySelector('meta[name="viewport"]');
+        if (!viewport) {
+            viewport = document.createElement('meta');
+            viewport.name = 'viewport';
+            document.head.appendChild(viewport);
+        }
+        viewport.content = 'width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no';
     }
     
     // Nickname formu
@@ -190,9 +227,12 @@ document.addEventListener('DOMContentLoaded', function() {
         lastMouseY = mouseY;
     });
     
-    // Mobil cihazlar için dokunmatik desteği ekle
+    // Mobil cihazlar için dokunmatik desteği ekle - HASSASİYETİ ARTTIRALIM
     if (isMobileDevice) {
-        console.log('Adding touch support for mobile device');
+        console.log('Adding touch support for mobile device with increased sensitivity');
+        
+        // Son dokunma pozisyonu
+        let lastTouchY = 0;
         
         canvas.addEventListener('touchmove', function(e) {
             if (!gameStarted && !waitingForOpponent) return;
@@ -204,13 +244,36 @@ document.addEventListener('DOMContentLoaded', function() {
             const touch = e.touches[0];
             const touchY = touch.clientY - rect.top;
             
-            // Paddle pozisyonunu sunucuya gönder
-            socket.emit('paddle-move', touchY);
+            // Hareket miktarını hesapla
+            const deltaY = touchY - lastTouchY;
             
-            lastMouseY = touchY; // Aynı değişkeni kullanabiliriz
+            // Eğer bu ilk dokunuşsa, delta hesaplanamaz
+            if (lastTouchY !== 0) {
+                // Hassasiyet çarpanı ile yeni pozisyonu hesapla
+                // Mevcut pozisyon + (hareket miktarı * hassasiyet)
+                const newY = lastMouseY + (deltaY * MOBILE_SENSITIVITY);
+                
+                // Canvas sınırları içinde kalmayı sağla
+                const paddleHeight = 100; // Raket yüksekliği
+                const minY = paddleHeight / 2;
+                const maxY = canvas.height - (paddleHeight / 2);
+                const clampedY = Math.max(minY, Math.min(maxY, newY));
+                
+                // Paddle pozisyonunu sunucuya gönder
+                socket.emit('paddle-move', clampedY);
+                
+                lastMouseY = clampedY;
+                console.log('Touch move with sensitivity: delta=' + deltaY + ', new position=' + clampedY);
+            }
             
-            console.log('Touch move: ' + touchY);
+            // Son dokunma pozisyonunu güncelle
+            lastTouchY = touchY;
         }, { passive: false });
+        
+        // Dokunma bittiğinde son pozisyonu sıfırla
+        canvas.addEventListener('touchend', function() {
+            lastTouchY = 0;
+        });
         
         // Mobil cihazlar için bilgi mesajı
         const gameInfo = document.createElement('div');
@@ -321,6 +384,15 @@ function addChatMessage(sender, message) {
     
     chatMessages.appendChild(messageElement);
     chatMessages.scrollTop = chatMessages.scrollHeight;
+    
+    // Mobil cihazlarda mesaj geldiğinde chat alanını görünür yap
+    if (isMobileDevice && chatMessages.style.display === 'none') {
+        const chatToggle = document.getElementById('chatToggle');
+        if (chatToggle) {
+            chatToggle.textContent = 'Hide Chat';
+            chatMessages.style.display = 'block';
+        }
+    }
 }
 
 // Oyunu çiz
@@ -478,7 +550,7 @@ socket.on('game-start', (state) => {
     
     // Mobil cihazlarda ölçeklendirmeyi kontrol et
     if (isMobileDevice) {
-        resizeGameCanvas();
+        resizeGameElements(); // resizeGameCanvas yerine resizeGameElements kullanıyoruz
     }
     
     drawGame(state);
@@ -536,3 +608,43 @@ socket.on('error-message', (message) => {
     alert(message);
     resetGameState();
 });
+
+// Mobil cihazlar için chat toggle butonu ekle
+if (isMobileDevice) {
+    document.addEventListener('DOMContentLoaded', function() {
+        const chatContainer = document.getElementById('chatContainer');
+        const chatMessages = document.getElementById('chatMessages');
+        
+        if (chatContainer && chatMessages) {
+            // Chat toggle butonu oluştur
+            const chatToggle = document.createElement('button');
+            chatToggle.id = 'chatToggle';
+            chatToggle.textContent = 'Show Chat';
+            chatToggle.className = 'chat-toggle';
+            chatToggle.style.width = '100%';
+            chatToggle.style.padding = '5px';
+            chatToggle.style.marginBottom = '5px';
+            chatToggle.style.backgroundColor = '#333';
+            chatToggle.style.color = 'white';
+            chatToggle.style.border = 'none';
+            chatToggle.style.borderRadius = '3px';
+            
+            // Chat mesajlarını başlangıçta gizle
+            chatMessages.style.display = 'none';
+            
+            // Toggle butonunu chat container'ın başına ekle
+            chatContainer.insertBefore(chatToggle, chatContainer.firstChild);
+            
+            // Toggle butonuna tıklama olayı ekle
+            chatToggle.addEventListener('click', function() {
+                if (chatMessages.style.display === 'none') {
+                    chatMessages.style.display = 'block';
+                    chatToggle.textContent = 'Hide Chat';
+                } else {
+                    chatMessages.style.display = 'none';
+                    chatToggle.textContent = 'Show Chat';
+                }
+            });
+        }
+    });
+}

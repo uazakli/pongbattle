@@ -1,7 +1,58 @@
 <!DOCTYPE html>
-<html>
+<html lang="en">
 <head>
-    <title>Pong Game</title>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta name="description" content="Play multiplayer Pong online with friends at PongBattle.io. Control your paddle with mouse movements, create private rooms, and chat with your opponent in this classic arcade game.">
+    <meta name="keywords" content="pong, online pong, multiplayer pong, browser game, retro game, ping pong, arcade game, pongbattle">
+    <meta name="author" content="PongBattle.io">
+    
+    <!-- Open Graph / Facebook -->
+    <meta property="og:type" content="website">
+    <meta property="og:url" content="https://pongbattle.io/">
+    <meta property="og:title" content="PongBattle.io | Online Multiplayer Pong with Mouse Controls">
+    <meta property="og:description" content="Challenge friends to a game of Pong online at PongBattle.io. Create private rooms, control your paddle with your mouse, and chat while you play.">
+    <meta property="og:image" content="https://pongbattle.io/images/pong-preview.jpg">
+    
+    <!-- Twitter -->
+    <meta property="twitter:card" content="summary_large_image">
+    <meta property="twitter:url" content="https://pongbattle.io/">
+    <meta property="twitter:title" content="PongBattle.io | Online Multiplayer Pong with Mouse Controls">
+    <meta property="twitter:description" content="Challenge friends to a game of Pong online at PongBattle.io. Create private rooms, control your paddle with your mouse, and chat while you play.">
+    <meta property="twitter:image" content="https://pongbattle.io/images/pong-preview.jpg">
+    
+    <title>PongBattle.io | Online Multiplayer Pong | Play with Friends</title>
+    <link rel="canonical" href="https://pongbattle.io/">
+    <link rel="icon" href="/favicon.ico">
+    
+    <script type="application/ld+json">
+    {
+      "@context": "https://schema.org",
+      "@type": "VideoGame",
+      "name": "PongBattle.io",
+      "description": "Play the classic Pong game online with friends at PongBattle.io. Control your paddle with mouse movements, create private rooms, and chat with your opponent.",
+      "genre": ["Arcade", "Sports", "Retro"],
+      "gamePlatform": "Web Browser",
+      "applicationCategory": "Game",
+      "operatingSystem": "Any",
+      "offers": {
+        "@type": "Offer",
+        "price": "0",
+        "priceCurrency": "USD",
+        "availability": "https://schema.org/InStock"
+      },
+      "url": "https://pongbattle.io",
+      "image": "https://pongbattle.io/images/pong-preview.jpg",
+      "screenshot": "https://pongbattle.io/images/pong-gameplay.jpg",
+      "inLanguage": "en",
+      "playMode": "MultiPlayer",
+      "gameServer": {
+        "@type": "GameServer",
+        "serverStatus": "Online"
+      }
+    }
+    </script>
+    
     <style>
         body {
             display: flex;
@@ -142,8 +193,13 @@
     </style>
 </head>
 <body>
+    <header>
+        <h1>PongBattle.io</h1>
+        <p>The classic arcade game reimagined for online play</p>
+    </header>
+
     <div id="login">
-        <h2>Welcome to Pong</h2>
+        <h2>Welcome to PongBattle.io</h2>
         <form id="nicknameForm">
             <input type="text" id="nicknameInput" placeholder="Enter your nickname" required>
             <button type="submit">Play</button>
@@ -199,6 +255,11 @@
         </div>
         <button id="backBtn">Back to Lobby</button>
     </div>
+
+    <footer>
+        <p>&copy; 2023 PongBattle.io. All rights reserved.</p>
+        <p><a href="/privacy.html">Privacy Policy</a> | <a href="/terms.html">Terms of Service</a></p>
+    </footer>
 
     <script src="/socket.io/socket.io.js"></script>
     <script src="client.js"></script>

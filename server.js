@@ -9,6 +9,7 @@ const app = express();
 const server = http.createServer(app);
 const io = socketIO(server);
 const PORT = process.env.PORT || 3000;
+const DOMAIN = 'pongbattle.io';
 
 app.use(express.static(path.join(__dirname, "public")));
 
@@ -358,7 +359,8 @@ function generateRoomCode() {
 }
 
 server.listen(PORT, () => {
-  console.log(`Server running on http://localhost:${PORT}`);
+  console.log(`Server running on port ${PORT}`);
+  console.log(`Visit https://${DOMAIN} to play the game`);
 });
 
 // Ana route

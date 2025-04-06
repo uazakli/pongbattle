@@ -543,6 +543,20 @@ socket.on('ready-status', (data) => {
     }
 });
 
+// Google Analytics için özel olay gönderme fonksiyonu
+function sendAnalyticsEvent(category, action, label = null, value = null) {
+    if (typeof gtag === 'function') {
+        const eventParams = {
+            event_category: category,
+            event_label: label,
+            value: value
+        };
+        
+        gtag('event', action, eventParams);
+        console.log('Analytics event sent:', category, action, label, value);
+    }
+}
+
 // Oyun başladı
 socket.on('game-start', (state) => {
     waitingForOpponent = false;
@@ -550,11 +564,14 @@ socket.on('game-start', (state) => {
     
     // Mobil cihazlarda ölçeklendirmeyi kontrol et
     if (isMobileDevice) {
-        resizeGameElements(); // resizeGameCanvas yerine resizeGameElements kullanıyoruz
+        resizeGameElements();
     }
     
     drawGame(state);
     addChatMessage('System', 'Game started! Good luck!');
+    
+    // Analytics: Oyun başlatma olayını gönder
+    sendAnalyticsEvent('game', 'start', isMobileDevice ? 'mobile' : 'desktop');
 });
 
 // Oyun durumu güncellendi
@@ -577,9 +594,15 @@ socket.on('point-scored', (data) => {
     if (data.youLost) {
         drawText('You lost a point!\nClick to continue');
         addChatMessage('System', 'You lost a point! Click to continue.');
+        
+        // Analytics: Sayı kaybetme olayını gönder
+        sendAnalyticsEvent('game', 'point_lost');
     } else {
         drawText('You scored a point!\nWaiting for opponent...');
         addChatMessage('System', 'You scored a point! Waiting for opponent...');
+        
+        // Analytics: Sayı yapma olayını gönder
+        sendAnalyticsEvent('game', 'point_scored');
     }
 });
 

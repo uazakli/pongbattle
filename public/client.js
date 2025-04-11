@@ -152,7 +152,7 @@ document.addEventListener('DOMContentLoaded', function() {
     randomMatchBtn.addEventListener('click', function() {
         console.log('Quick match button clicked');
         this.disabled = true;
-        this.textContent = 'Searching...';
+        this.innerHTML = 'Searching... <div class="loading"><div></div><div></div><div></div><div></div></div>';
         
         // Sunucuya rastgele eşleşme isteği gönder
         socket.emit('join-random');
@@ -163,6 +163,7 @@ document.addEventListener('DOMContentLoaded', function() {
     createRoomBtn.addEventListener('click', function() {
         console.log('Create room button clicked');
         this.disabled = true;
+        this.innerHTML = 'Creating... <div class="loading"><div></div><div></div><div></div><div></div></div>';
         
         // Sunucuya oda oluşturma isteği gönder
         socket.emit('create-room');
@@ -171,14 +172,18 @@ document.addEventListener('DOMContentLoaded', function() {
     // Odaya katıl butonu
     const joinRoomBtn = document.getElementById('joinRoomBtn');
     joinRoomBtn.addEventListener('click', function() {
-        const code = document.getElementById('roomCodeInput').value.trim();
+        const code = document.getElementById('roomCodeInput').value.trim().toUpperCase();
         if (code) {
             console.log('Join room code:', code);
             this.disabled = true;
-            this.textContent = 'Joining...';
+            this.innerHTML = 'Joining... <div class="loading"><div></div><div></div><div></div><div></div></div>';
             
             // Sunucuya odaya katılma isteği gönder
             socket.emit('join-room', code);
+        } else {
+            // Show error for empty code
+            document.getElementById('roomCodeInput').focus();
+            showNotification('Please enter a room code', 'error');
         }
     });
     
@@ -315,7 +320,7 @@ document.addEventListener('DOMContentLoaded', function() {
             const isMuted = this.classList.toggle('muted');
             hitSound.muted = isMuted;
             pointSound.muted = isMuted;
-            this.textContent = isMuted ? 'Unmute' : 'Mute';
+            this.innerHTML = isMuted ? '🔇 Sound Off' : '🔊 Sound On';
         });
     }
 });
@@ -349,6 +354,7 @@ function resetGameState() {
     const createRoomBtn = document.getElementById('createRoomBtn');
     if (createRoomBtn) {
         createRoomBtn.disabled = false;
+        createRoomBtn.textContent = 'Create Room';
     }
     
     const joinRoomBtn = document.getElementById('joinRoomBtn');
@@ -400,34 +406,28 @@ function drawGame(state) {
     const canvas = document.getElementById('pong');
     const ctx = canvas.getContext('2d');
     
-    // Canvas'ın çizim boyutlarını al
-    const canvasWidth = canvas.width;
-    const canvasHeight = canvas.height;
+    // Ekranı temizle - koyu arka plan
+    ctx.fillStyle = '#0f172a';
+    ctx.fillRect(0, 0, canvas.width, canvas.height);
     
-    // Ekranı temizle
-    ctx.fillStyle = 'black';
-    ctx.fillRect(0, 0, canvasWidth, canvasHeight);
+    // Izgara çiz - retro hissi için
+    drawGrid(ctx, canvas.width, canvas.height);
     
-    // Raketleri çiz
-    ctx.fillStyle = 'white';
-    ctx.fillRect(20, state.paddles.left.y, 10, 100);
-    ctx.fillRect(canvasWidth - 30, state.paddles.right.y, 10, 100);
+    // Raketleri çiz - biri mavi, diğeri kırmızı
+    // Sol raket - mavi
+    drawPaddle(ctx, 20, state.paddles.left.y, 10, 100, '#00c2ff');
     
-    // Topu çiz
-    ctx.fillRect(state.ball.x - 5, state.ball.y - 5, 10, 10);
+    // Sağ raket - kırmızı
+    drawPaddle(ctx, canvas.width - 30, state.paddles.right.y, 10, 100, '#ff3e7f');
+    
+    // Topu çiz - parlak ve güzel
+    drawBall(ctx, state.ball.x, state.ball.y, 10);
     
     // Skoru çiz
-    ctx.font = '30px Arial';
-    ctx.textAlign = 'center';
-    ctx.fillText(`${state.score.left} - ${state.score.right}`, canvasWidth/2, 50);
+    drawScore(ctx, state.score.left, state.score.right, canvas.width);
     
     // Orta çizgiyi çiz
-    ctx.setLineDash([10, 10]);
-    ctx.beginPath();
-    ctx.moveTo(canvasWidth/2, 0);
-    ctx.lineTo(canvasWidth/2, canvasHeight);
-    ctx.strokeStyle = 'white';
-    ctx.stroke();
+    drawCenterLine(ctx, canvas.width, canvas.height);
     
     // Topa temas kontrolü
     checkBallHit(state);
@@ -436,59 +436,149 @@ function drawGame(state) {
     lastBallPosition = { x: state.ball.x, y: state.ball.y };
 }
 
-// Topa temas kontrolü
-function checkBallHit(state) {
-    // İlk kare ise kontrol etme
-    if (lastBallPosition.x === 0 && lastBallPosition.y === 0) return;
+// Izgara çiz
+function drawGrid(ctx, width, height) {
+    ctx.strokeStyle = 'rgba(255, 255, 255, 0.05)';
+    ctx.lineWidth = 1;
     
-    const ball = state.ball;
-    const leftPaddle = { x: 30, y: state.paddles.left.y, width: 10, height: 100 };
-    const rightPaddle = { x: 770, y: state.paddles.right.y, width: 10, height: 100 };
-    
-    // Top yön değiştirdi mi?
-    const directionChanged = (
-        (ball.dx > 0 && lastBallPosition.x > ball.x) || 
-        (ball.dx < 0 && lastBallPosition.x < ball.x)
-    );
-    
-    // Yön değiştiyse ve raketlere yakınsa ses çal
-    if (directionChanged) {
-        // Sol raket kontrolü
-        if (Math.abs(ball.x - leftPaddle.x) < 20) {
-            hitSound.currentTime = 0;
-            hitSound.play();
-        }
-        // Sağ raket kontrolü
-        else if (Math.abs(ball.x - rightPaddle.x) < 20) {
-            hitSound.currentTime = 0;
-            hitSound.play();
-        }
+    // Yatay çizgiler
+    for (let y = 0; y < height; y += 25) {
+        ctx.beginPath();
+        ctx.moveTo(0, y);
+        ctx.lineTo(width, y);
+        ctx.stroke();
     }
     
-    // Üst veya alt duvara çarptı mı?
-    if ((ball.y <= 0 && lastBallPosition.y > 0) || 
-        (ball.y >= 500 && lastBallPosition.y < 500)) {
-        hitSound.currentTime = 0;
-        hitSound.play();
+    // Dikey çizgiler
+    for (let x = 0; x < width; x += 25) {
+        ctx.beginPath();
+        ctx.moveTo(x, 0);
+        ctx.lineTo(x, height);
+        ctx.stroke();
     }
 }
 
-// Metin çiz
+// Raket çiz
+function drawPaddle(ctx, x, y, width, height, color) {
+    // Gölge efekti
+    ctx.fillStyle = 'rgba(0, 0, 0, 0.3)';
+    ctx.fillRect(x + 2, y + 2, width, height);
+    
+    // Ana raket
+    const gradient = ctx.createLinearGradient(x, y, x + width, y);
+    gradient.addColorStop(0, color);
+    gradient.addColorStop(1, shadeColor(color, 30));
+    
+    ctx.fillStyle = gradient;
+    ctx.fillRect(x, y, width, height);
+    
+    // Parlak kenar
+    ctx.fillStyle = 'rgba(255, 255, 255, 0.8)';
+    ctx.fillRect(x, y, width, 2);
+    ctx.fillRect(x, y, 2, height);
+    
+    // Koyu kenar
+    ctx.fillStyle = 'rgba(0, 0, 0, 0.4)';
+    ctx.fillRect(x, y + height - 2, width, 2);
+    ctx.fillRect(x + width - 2, y, 2, height);
+}
+
+// Top çiz
+function drawBall(ctx, x, y, radius) {
+    // Gölge
+    ctx.beginPath();
+    ctx.arc(x + 2, y + 2, radius, 0, Math.PI * 2);
+    ctx.fillStyle = 'rgba(0, 0, 0, 0.3)';
+    ctx.fill();
+    
+    // Ana top
+    ctx.beginPath();
+    ctx.arc(x, y, radius, 0, Math.PI * 2);
+    
+    // Gradient ile daha güzel bir top
+    const gradient = ctx.createRadialGradient(x - radius/3, y - radius/3, 0, x, y, radius);
+    gradient.addColorStop(0, '#ffffff');
+    gradient.addColorStop(0.3, '#f0f0f0');
+    gradient.addColorStop(1, '#cccccc');
+    
+    ctx.fillStyle = gradient;
+    ctx.fill();
+    
+    // Parlak nokta (highlight)
+    ctx.beginPath();
+    ctx.arc(x - radius/2.5, y - radius/2.5, radius/4, 0, Math.PI * 2);
+    ctx.fillStyle = 'rgba(255, 255, 255, 0.8)';
+    ctx.fill();
+}
+
+// Skor çiz
+function drawScore(ctx, leftScore, rightScore, canvasWidth) {
+    ctx.font = 'bold 48px Rubik';
+    ctx.textAlign = 'center';
+    
+    // Sol skor - mavi
+    ctx.fillStyle = 'rgba(0, 194, 255, 0.8)';
+    ctx.fillText(leftScore, canvasWidth/4, 60);
+    
+    // Sağ skor - kırmızı
+    ctx.fillStyle = 'rgba(255, 62, 127, 0.8)';
+    ctx.fillText(rightScore, canvasWidth * 3/4, 60);
+}
+
+// Orta çizgiyi çiz
+function drawCenterLine(ctx, width, height) {
+    ctx.strokeStyle = 'rgba(255, 255, 255, 0.2)';
+    ctx.lineWidth = 4;
+    ctx.setLineDash([15, 15]);
+    ctx.beginPath();
+    ctx.moveTo(width/2, 0);
+    ctx.lineTo(width/2, height);
+    ctx.stroke();
+    ctx.setLineDash([]);
+}
+
+// Renk tonu değiştirme yardımcı fonksiyonu
+function shadeColor(color, percent) {
+    let R = parseInt(color.substring(1, 3), 16);
+    let G = parseInt(color.substring(3, 5), 16);
+    let B = parseInt(color.substring(5, 7), 16);
+
+    R = parseInt(R * (100 + percent) / 100);
+    G = parseInt(G * (100 + percent) / 100);
+    B = parseInt(B * (100 + percent) / 100);
+
+    R = (R < 255) ? R : 255;
+    G = (G < 255) ? G : 255;
+    B = (B < 255) ? B : 255;
+
+    const RR = ((R.toString(16).length == 1) ? "0" + R.toString(16) : R.toString(16));
+    const GG = ((G.toString(16).length == 1) ? "0" + G.toString(16) : G.toString(16));
+    const BB = ((B.toString(16).length == 1) ? "0" + B.toString(16) : B.toString(16));
+
+    return "#" + RR + GG + BB;
+}
+
+// Metin çiz - beklerken veya oyun durumları için
 function drawText(text) {
     const canvas = document.getElementById('pong');
     const ctx = canvas.getContext('2d');
     
     // Ekranı temizle
-    ctx.fillStyle = 'black';
+    ctx.fillStyle = '#0f172a';
     ctx.fillRect(0, 0, canvas.width, canvas.height);
     
+    // Izgara çiz
+    drawGrid(ctx, canvas.width, canvas.height);
+    
     // Metni çiz
-    ctx.fillStyle = 'white';
-    ctx.font = '24px Arial';
+    ctx.fillStyle = '#ffffff';
+    ctx.font = 'bold 28px Rubik';
     ctx.textAlign = 'center';
+    ctx.shadowColor = 'rgba(0, 194, 255, 0.5)';
+    ctx.shadowBlur = 10;
     
     const lines = text.split('\n');
-    const lineHeight = 30;
+    const lineHeight = 40;
     lines.forEach((line, index) => {
         ctx.fillText(
             line, 
@@ -496,6 +586,8 @@ function drawText(text) {
             canvas.height/2 + (index - lines.length/2) * lineHeight
         );
     });
+    
+    ctx.shadowBlur = 0;
 }
 
 // Socket olayları
@@ -628,7 +720,7 @@ socket.on('opponent-left', () => {
 
 // Hata mesajı
 socket.on('error-message', (message) => {
-    alert(message);
+    showNotification(message, 'error');
     resetGameState();
 });
 
@@ -670,4 +762,77 @@ if (isMobileDevice) {
             });
         }
     });
+}
+
+// Show loading indicator
+function showLoading(elementId) {
+    const element = document.getElementById(elementId);
+    if (element) {
+        element.innerHTML = '<div class="loading"><div></div><div></div><div></div><div></div></div>';
+    }
+}
+
+// Hide loading indicator
+function hideLoading(elementId, text) {
+    const element = document.getElementById(elementId);
+    if (element) {
+        element.textContent = text || '';
+    }
+}
+
+// Show notification
+function showNotification(message, type = 'info') {
+    const notification = document.createElement('div');
+    notification.className = `notification ${type}`;
+    notification.textContent = message;
+    
+    document.body.appendChild(notification);
+    
+    setTimeout(() => {
+        notification.classList.add('show');
+    }, 10);
+    
+    setTimeout(() => {
+        notification.classList.remove('show');
+        setTimeout(() => {
+            notification.remove();
+        }, 300);
+    }, 3000);
+}
+
+// Topa temas kontrolü
+function checkBallHit(state) {
+    // İlk kare ise kontrol etme
+    if (lastBallPosition.x === 0 && lastBallPosition.y === 0) return;
+    
+    const ball = state.ball;
+    const leftPaddle = { x: 30, y: state.paddles.left.y, width: 10, height: 100 };
+    const rightPaddle = { x: 770, y: state.paddles.right.y, width: 10, height: 100 };
+    
+    // Top yön değiştirdi mi?
+    const directionChanged = (
+        (ball.dx > 0 && lastBallPosition.x > ball.x) || 
+        (ball.dx < 0 && lastBallPosition.x < ball.x)
+    );
+    
+    // Yön değiştiyse ve raketlere yakınsa ses çal
+    if (directionChanged) {
+        // Sol raket kontrolü
+        if (Math.abs(ball.x - leftPaddle.x) < 20) {
+            hitSound.currentTime = 0;
+            hitSound.play();
+        }
+        // Sağ raket kontrolü
+        else if (Math.abs(ball.x - rightPaddle.x) < 20) {
+            hitSound.currentTime = 0;
+            hitSound.play();
+        }
+    }
+    
+    // Üst veya alt duvara çarptı mı?
+    if ((ball.y <= 0 && lastBallPosition.y > 0) || 
+        (ball.y >= 500 && lastBallPosition.y < 500)) {
+        hitSound.currentTime = 0;
+        hitSound.play();
+    }
 }

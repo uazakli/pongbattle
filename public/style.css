@@ -520,4 +520,40 @@ footer {
       100% calc(100% - 4px), calc(100% - 4px) calc(100% - 4px), calc(100% - 4px) 100%, 4px 100%, 
       4px calc(100% - 4px), 0% calc(100% - 4px)
     );
+}
+
+.player-count-container {
+    display: inline-block;
+    margin-left: 10px;
+    background-color: var(--surface);
+    padding: 3px 8px;
+    border-radius: 20px;
+    font-size: 0.85rem;
+    color: #4ade80;
+    font-weight: 500;
+    box-shadow: var(--shadow);
+    border: 1px solid rgba(74, 222, 128, 0.2);
+    animation: pulse-green 2s infinite;
+}
+
+#playerCount {
+    font-weight: 700;
+    color: #4ade80;
+}
+
+/* Yeşil parlama animasyonu */
+@keyframes pulse-green {
+    0% { 
+        color: #4ade80; 
+        border-color: rgba(74, 222, 128, 0.2);
+    }
+    50% { 
+        color: #86efac; 
+        border-color: rgba(134, 239, 172, 0.4);
+        text-shadow: 0 0 5px rgba(74, 222, 128, 0.5);
+    }
+    100% { 
+        color: #4ade80; 
+        border-color: rgba(74, 222, 128, 0.2);
+    }
 } 

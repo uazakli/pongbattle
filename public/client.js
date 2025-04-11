@@ -836,3 +836,26 @@ function checkBallHit(state) {
         hitSound.play();
     }
 }
+
+// Oyuncu sayısı değişkeni
+let onlinePlayerCount = 0;
+
+// Socket olayları bölümüne ekle
+socket.on('player-count-update', (count) => {
+    onlinePlayerCount = count;
+    updatePlayerCountDisplay();
+});
+
+// Oyuncu sayısını güncelleyen fonksiyon
+function updatePlayerCountDisplay() {
+    const playerCountElement = document.getElementById('playerCount');
+    if (playerCountElement) {
+        playerCountElement.textContent = onlinePlayerCount;
+        
+        // Oyuncu sayısı metni için doğru çoğul/tekil form
+        const playerTextElement = document.getElementById('playerText');
+        if (playerTextElement) {
+            playerTextElement.textContent = onlinePlayerCount === 1 ? 'player' : 'players';
+        }
+    }
+}

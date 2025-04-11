@@ -22,6 +22,8 @@ const CANVAS_WIDTH = 800;
 const CANVAS_HEIGHT = 500;
 const PADDLE_HEIGHT = 100;
 
+let onlinePlayerCount = 0;
+
 function createGameState() {
   return {
     ball: { 
@@ -43,6 +45,9 @@ function createGameState() {
 
 io.on("connection", (socket) => {
   console.log("New connection:", socket.id);
+
+  onlinePlayerCount++;
+  io.emit('player-count-update', onlinePlayerCount);
 
   socket.on("set-nickname", (nickname) => {
     // Nickname'i temizle ve kontrol et
@@ -211,6 +216,10 @@ io.on("connection", (socket) => {
 
   socket.on("disconnect", () => {
     console.log('Disconnected:', socket.id);
+    
+    onlinePlayerCount--;
+    io.emit('player-count-update', onlinePlayerCount);
+    
     handlePlayerDisconnect(socket.id);
     
     const player = players.get(socket.id);

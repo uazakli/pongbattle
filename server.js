@@ -370,11 +370,23 @@ function handlePoint(room, scoringSide) {
   io.to(winningPlayerId).emit('point-scored', { youLost: false });
 }
 
-function resetBall(state) {
-  state.ball.x = CANVAS_WIDTH/2;
-  state.ball.y = CANVAS_HEIGHT/2;
-  state.ball.dx = Math.random() > 0.5 ? 5 : -5;
-  state.ball.dy = Math.random() > 0.5 ? 3 : -3;
+function resetBall(gameState) {
+  gameState.ball.x = 400;
+  gameState.ball.y = 250;
+  
+  // İlk X hızını %10 artır (5 yerine 5.5)
+  gameState.ball.dx = (Math.random() > 0.5 ? 5.5 : -5.5);
+  
+  // Y hızını hesapla ve minimum değer garantile
+  // İlk Y hızını da %10 artır
+  let newDy = (Math.random() > 0.5 ? 3.3 : -3.3) * (Math.random() * 2 + 1);
+  
+  // Minimum Y hızı garantisi
+  if (Math.abs(newDy) < 2.2) { // Minimum değeri de %10 artır
+    newDy = 2.2 * Math.sign(newDy || 1);
+  }
+  
+  gameState.ball.dy = newDy;
 }
 
 function handlePlayerDisconnect(playerId) {

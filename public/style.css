@@ -556,4 +556,49 @@ footer {
         color: #4ade80; 
         border-color: rgba(74, 222, 128, 0.2);
     }
+}
+
+/* Zorluk seçici butonları */
+.difficulty-selector {
+    display: flex;
+    gap: 8px;
+    margin-bottom: 15px;
+}
+
+.difficulty-btn {
+    flex: 1;
+    background-color: var(--surface-light);
+    color: var(--text-secondary);
+    padding: 8px 10px;
+    margin: 0;
+    font-size: 0.85rem;
+    text-transform: none;
+    letter-spacing: normal;
+    box-shadow: none;
+    border: 2px solid transparent;
+    position: relative;
+    transition: all 0.2s ease;
+}
+
+.difficulty-btn:hover {
+    transform: none;
+    background-color: var(--surface-light);
+    border-color: rgba(0, 194, 255, 0.3);
+}
+
+.difficulty-btn.active {
+    background: var(--surface-light);
+    color: var(--primary-light);
+    border-color: var(--primary);
+    font-weight: 600;
+    box-shadow: 0 0 8px rgba(0, 194, 255, 0.4);
+}
+
+.difficulty-btn.active::after {
+    content: "✓";
+    position: absolute;
+    right: 8px;
+    top: 50%;
+    transform: translateY(-50%);
+    color: var(--primary-light);
 } 

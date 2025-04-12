@@ -14,6 +14,8 @@ let lastMouseY = 0;
 let waitingAfterPoint = false;
 let iAmPointLoser = false;
 let lastBallPosition = { x: 0, y: 0 };
+let isOfflineGame = false;
+let aiDifficulty = 'easy'; // Varsayılan zorluk seviyesi
 
 // Ses efektleri
 const hitSound = new Audio('/sounds/hit.mp3');
@@ -220,15 +222,36 @@ document.addEventListener('DOMContentLoaded', function() {
     // Mouse hareketi ile raket kontrolü
     const canvas = document.getElementById('pong');
     canvas.addEventListener('mousemove', function(e) {
-        if (!gameStarted && !waitingForOpponent) return;
+        if (!gameStarted && !waitingForOpponent && !isOfflineGame) return;
         
-        // Mouse'un canvas içindeki Y pozisyonunu al
+        // Mouse pozisyonunu al
         const rect = canvas.getBoundingClientRect();
         const mouseY = e.clientY - rect.top;
         
-        // Paddle pozisyonunu sunucuya gönder
-        socket.emit('paddle-move', mouseY);
+        // Raket pozisyonunu güncelle
+        if (gameStarted || isOfflineGame) {
+            // Raket pozisyonunu sunucuya gönder (online oyun için)
+            if (!isOfflineGame) {
+                socket.emit('paddle-move', mouseY);
+            } 
+            // Offline oyun için doğrudan raket pozisyonunu güncelle
+            else {
+                // Canvas ölçeğini hesapla
+                const scaleY = canvas.height / rect.height;
+                // Ölçeklenmiş Y pozisyonu
+                const scaledY = mouseY * scaleY;
+                // Raket yüksekliğinin yarısını çıkar (ortalama için)
+                const paddleY = Math.max(0, Math.min(canvas.height - 100, scaledY - 50));
+                
+                // Oyun durumunu güncelle
+                const gameState = window.offlineGameState;
+                if (gameState) {
+                    gameState.paddles.left.y = paddleY;
+                }
+            }
+        }
         
+        // Son mouse pozisyonunu kaydet
         lastMouseY = mouseY;
     });
     
@@ -323,6 +346,32 @@ document.addEventListener('DOMContentLoaded', function() {
             this.innerHTML = isMuted ? '🔇 Sound Off' : '🔊 Sound On';
         });
     }
+    
+    // Zorluk seviyesi butonları
+    const difficultyBtns = document.querySelectorAll('.difficulty-btn');
+    difficultyBtns.forEach(btn => {
+        btn.addEventListener('click', function() {
+            // Aktif sınıfı kaldır
+            document.querySelector('.difficulty-btn.active').classList.remove('active');
+            // Bu butona aktif sınıfı ekle
+            this.classList.add('active');
+            // Zorluk seviyesini ayarla
+            aiDifficulty = this.id.replace('Btn', '').toLowerCase();
+        });
+    });
+    
+    // Offline oyun başlatma butonu
+    const startOfflineBtn = document.getElementById('startOfflineBtn');
+    if (startOfflineBtn) {
+        startOfflineBtn.addEventListener('click', function() {
+            console.log('Starting offline game with difficulty:', aiDifficulty);
+            document.getElementById('lobby').style.display = 'none';
+            document.getElementById('game').style.display = 'block';
+            
+            // Offline oyun başlat
+            startOfflineGame();
+        });
+    }
 });
 
 // Rastgele oda kodu oluştur
@@ -343,6 +392,7 @@ function resetGameState() {
     opponentReady = false;
     waitingAfterPoint = false;
     iAmPointLoser = false;
+    isOfflineGame = false;
     
     // Butonları sıfırla
     const randomMatchBtn = document.getElementById('randomMatchBtn');
@@ -858,4 +908,169 @@ function updatePlayerCountDisplay() {
             playerTextElement.textContent = onlinePlayerCount === 1 ? 'player' : 'players';
         }
     }
+}
+
+// Offline oyun başlat
+function startOfflineGame() {
+    isOfflineGame = true;
+    gameStarted = true;
+    
+    // Başlangıç oyun durumu
+    const gameState = {
+        ball: { x: 400, y: 250, dx: 5, dy: 3 },
+        paddles: {
+            left: { y: 200 },
+            right: { y: 200 }
+        },
+        score: { left: 0, right: 0 }
+    };
+    
+    // Oyun durumunu global olarak sakla
+    window.offlineGameState = gameState;
+    
+    // Oyunu çiz
+    drawGame(gameState);
+    
+    // AI döngüsünü başlat
+    startAiGameLoop(gameState);
+    
+    // Sistem mesajı
+    addChatMessage('System', `Offline game started! Difficulty: ${aiDifficulty.charAt(0).toUpperCase() + aiDifficulty.slice(1)}`);
+}
+
+// AI oyun döngüsü
+function startAiGameLoop(gameState) {
+    const aiGameInterval = setInterval(() => {
+        if (!isOfflineGame) {
+            clearInterval(aiGameInterval);
+            return;
+        }
+        
+        // Global oyun durumunu kullan
+        const currentState = window.offlineGameState || gameState;
+        
+        // Topu hareket ettir
+        currentState.ball.x += currentState.ball.dx;
+        currentState.ball.y += currentState.ball.dy;
+        
+        // Üst ve alt duvar çarpışmaları
+        if (currentState.ball.y <= 0 || currentState.ball.y >= 500) {
+            currentState.ball.dy = -currentState.ball.dy;
+        }
+        
+        // AI raketini hareket ettir
+        moveAiPaddle(currentState);
+        
+        // Sol raket çarpışması (oyuncu)
+        if (currentState.ball.x <= 30 && 
+            currentState.ball.y >= currentState.paddles.left.y && 
+            currentState.ball.y <= currentState.paddles.left.y + 100) {
+            
+            currentState.ball.dx = -currentState.ball.dx * 1.05;
+            
+            // Top açısını değiştir
+            const hitPosition = (currentState.ball.y - currentState.paddles.left.y) / 100;
+            currentState.ball.dy = (hitPosition - 0.5) * 10;
+            
+            // Ses çal
+            hitSound.currentTime = 0;
+            hitSound.play();
+        }
+        
+        // Sağ raket çarpışması (AI)
+        if (currentState.ball.x >= 770 && 
+            currentState.ball.y >= currentState.paddles.right.y && 
+            currentState.ball.y <= currentState.paddles.right.y + 100) {
+            
+            currentState.ball.dx = -currentState.ball.dx * 1.05;
+            
+            // Top açısını değiştir
+            const hitPosition = (currentState.ball.y - currentState.paddles.right.y) / 100;
+            currentState.ball.dy = (hitPosition - 0.5) * 10;
+            
+            // Ses çal
+            hitSound.currentTime = 0;
+            hitSound.play();
+        }
+        
+        // Sayı kontrolü
+        if (currentState.ball.x <= 0) {
+            // AI sayı aldı
+            currentState.score.right++;
+            pointSound.currentTime = 0;
+            pointSound.play();
+            resetBall(currentState);
+        } else if (currentState.ball.x >= 800) {
+            // Oyuncu sayı aldı
+            currentState.score.left++;
+            pointSound.currentTime = 0;
+            pointSound.play();
+            resetBall(currentState);
+        }
+        
+        // Oyunu çiz
+        drawGame(currentState);
+        
+    }, 1000/60); // 60 FPS
+}
+
+// AI raketini hareket ettir
+function moveAiPaddle(gameState) {
+    const paddle = gameState.paddles.right;
+    const ball = gameState.ball;
+    
+    // Zorluk seviyesine göre AI tepki hızı
+    let aiSpeed;
+    let aiError;
+    
+    switch(aiDifficulty) {
+        case 'easy':
+            aiSpeed = 3;
+            aiError = 50;
+            break;
+        case 'medium':
+            aiSpeed = 5;
+            aiError = 25;
+            break;
+        case 'hard':
+            aiSpeed = 7;
+            aiError = 10;
+            break;
+        default:
+            aiSpeed = 5;
+            aiError = 25;
+    }
+    
+    // Top sağa doğru gidiyorsa (AI'ya doğru) veya top orta çizginin sağındaysa
+    if (ball.dx > 0 || ball.x > 400) {
+        // Hedef pozisyon (topun Y pozisyonu + rastgele hata)
+        const targetY = ball.y - 50 + (Math.random() * aiError - aiError/2);
+        
+        // Raket hedeften yukarıdaysa aşağı hareket et
+        if (paddle.y + 50 < targetY) {
+            paddle.y += aiSpeed;
+        } 
+        // Raket hedeften aşağıdaysa yukarı hareket et
+        else if (paddle.y + 50 > targetY) {
+            paddle.y -= aiSpeed;
+        }
+    } else {
+        // Top AI'dan uzaklaşıyorsa, raket yavaşça merkeze dön
+        if (paddle.y + 50 < 250) {
+            paddle.y += aiSpeed / 2;
+        } else if (paddle.y + 50 > 250) {
+            paddle.y -= aiSpeed / 2;
+        }
+    }
+    
+    // Raket sınırlarını kontrol et
+    paddle.y = Math.max(0, Math.min(400, paddle.y));
+}
+
+// Topu sıfırla
+function resetBall(gameState) {
+    gameState.ball.x = 400;
+    gameState.ball.y = 250;
+    gameState.ball.dx = (Math.random() > 0.5 ? 5 : -5);
+    gameState.ball.dy = (Math.random() > 0.5 ? 3 : -3) * (Math.random() * 2 + 1);
 }

@@ -954,8 +954,12 @@ function startAiGameLoop(gameState) {
         currentState.ball.y += currentState.ball.dy;
         
         // Üst ve alt duvar çarpışmaları
-        if (currentState.ball.y <= 0 || currentState.ball.y >= 500) {
+        if (currentState.ball.y <= 10 || currentState.ball.y >= 490) {
             currentState.ball.dy = -currentState.ball.dy;
+            
+            // Ses çal
+            hitSound.currentTime = 0;
+            hitSound.play();
         }
         
         // AI raketini hareket ettir
@@ -966,15 +970,42 @@ function startAiGameLoop(gameState) {
             currentState.ball.y >= currentState.paddles.left.y && 
             currentState.ball.y <= currentState.paddles.left.y + 100) {
             
-            currentState.ball.dx = -currentState.ball.dx * 1.05;
-            
-            // Top açısını değiştir
+            // Paddle'ın neresine vurulduğunu hesapla (0-1 arası)
             const hitPosition = (currentState.ball.y - currentState.paddles.left.y) / 100;
-            currentState.ball.dy = (hitPosition - 0.5) * 10;
+            
+            // Paddle'ın ortasından uzaklık (-0.5 ile 0.5 arası)
+            const distanceFromCenter = hitPosition - 0.5;
+            
+            // Minimum açı garantisi
+            const minAngleOffset = 0.15;
+            let adjustedDistance = distanceFromCenter;
+            
+            if (Math.abs(distanceFromCenter) < minAngleOffset) {
+                adjustedDistance = minAngleOffset * Math.sign(distanceFromCenter);
+                if (distanceFromCenter === 0) {
+                    adjustedDistance = minAngleOffset * (Math.random() > 0.5 ? 1 : -1);
+                }
+            }
+            
+            // Mevcut hızı hesapla
+            const currentSpeed = Math.sqrt(currentState.ball.dx * currentState.ball.dx + currentState.ball.dy * currentState.ball.dy);
+            
+            // Açıyı hesapla
+            const angle = adjustedDistance * Math.PI / 2.5;
+            
+            // Kenarlara vurulduğunda daha hızlı, ama minimum hızı koru
+            const speed = Math.max(currentSpeed, 7 + Math.abs(distanceFromCenter) * 6);
+            
+            // Yeni hız bileşenlerini hesapla
+            currentState.ball.dx = Math.abs(Math.cos(angle) * speed); // Her zaman sağa git
+            currentState.ball.dy = Math.sin(angle) * speed;
             
             // Ses çal
             hitSound.currentTime = 0;
             hitSound.play();
+            
+            // Topun raket içine girmesini önle
+            currentState.ball.x = 30;
         }
         
         // Sağ raket çarpışması (AI)
@@ -982,15 +1013,45 @@ function startAiGameLoop(gameState) {
             currentState.ball.y >= currentState.paddles.right.y && 
             currentState.ball.y <= currentState.paddles.right.y + 100) {
             
-            currentState.ball.dx = -currentState.ball.dx * 1.05;
-            
-            // Top açısını değiştir
+            // Paddle'ın neresine vurulduğunu hesapla (0-1 arası)
             const hitPosition = (currentState.ball.y - currentState.paddles.right.y) / 100;
-            currentState.ball.dy = (hitPosition - 0.5) * 10;
+            
+            // Paddle'ın ortasından uzaklık (-0.5 ile 0.5 arası)
+            const distanceFromCenter = hitPosition - 0.5;
+            
+            // Minimum açı garantisi
+            const minAngleOffset = 0.15;
+            let adjustedDistance = distanceFromCenter;
+            
+            if (Math.abs(distanceFromCenter) < minAngleOffset) {
+                adjustedDistance = minAngleOffset * Math.sign(distanceFromCenter);
+                if (distanceFromCenter === 0) {
+                    adjustedDistance = minAngleOffset * (Math.random() > 0.5 ? 1 : -1);
+                }
+            }
+            
+            // Mevcut hızı hesapla
+            const currentSpeed = Math.sqrt(currentState.ball.dx * currentState.ball.dx + currentState.ball.dy * currentState.ball.dy);
+            
+            // Açıyı hesapla
+            const angle = adjustedDistance * Math.PI / 2.5;
+            
+            // AI vuruşunda hızı %3 artır
+            const speedIncrease = 1.03; // %3 artış
+            
+            // Kenarlara vurulduğunda daha hızlı, ama minimum hızı koru ve %3 artır
+            const speed = Math.max(currentSpeed * speedIncrease, 7 + Math.abs(distanceFromCenter) * 6);
+            
+            // Yeni hız bileşenlerini hesapla
+            currentState.ball.dx = -Math.abs(Math.cos(angle) * speed); // Her zaman sola git
+            currentState.ball.dy = Math.sin(angle) * speed;
             
             // Ses çal
             hitSound.currentTime = 0;
             hitSound.play();
+            
+            // Topun raket içine girmesini önle
+            currentState.ball.x = 770;
         }
         
         // Sayı kontrolü
@@ -1022,44 +1083,81 @@ function moveAiPaddle(gameState) {
     // Zorluk seviyesine göre AI tepki hızı
     let aiSpeed;
     let aiError;
+    let deadZone; // Titreme önleyici ölü bölge
     
     switch(aiDifficulty) {
         case 'easy':
             aiSpeed = 3;
-            aiError = 50;
+            aiError = 40;
+            deadZone = 15;
             break;
         case 'medium':
             aiSpeed = 5;
-            aiError = 25;
+            aiError = 20;
+            deadZone = 10;
             break;
         case 'hard':
             aiSpeed = 7;
-            aiError = 10;
+            aiError = 5;
+            deadZone = 5;
             break;
         default:
             aiSpeed = 5;
-            aiError = 25;
+            aiError = 20;
+            deadZone = 10;
     }
+    
+    // Hedef pozisyon
+    let targetY = 0;
     
     // Top sağa doğru gidiyorsa (AI'ya doğru) veya top orta çizginin sağındaysa
     if (ball.dx > 0 || ball.x > 400) {
-        // Hedef pozisyon (topun Y pozisyonu + rastgele hata)
-        const targetY = ball.y - 50 + (Math.random() * aiError - aiError/2);
+        // Paddle'ın ortasını hedefle (paddle yüksekliği 100px)
+        const paddleCenter = 50;
         
-        // Raket hedeften yukarıdaysa aşağı hareket et
-        if (paddle.y + 50 < targetY) {
-            paddle.y += aiSpeed;
-        } 
-        // Raket hedeften aşağıdaysa yukarı hareket et
-        else if (paddle.y + 50 > targetY) {
-            paddle.y -= aiSpeed;
+        // Rastgele hatayı her karede değil, belirli aralıklarla uygula
+        if (!paddle.errorTimer || paddle.errorTimer <= 0) {
+            paddle.errorOffset = (Math.random() * aiError - aiError/2);
+            paddle.errorTimer = 30; // 30 kare (yaklaşık 0.5 saniye) boyunca aynı hatayı kullan
+        } else {
+            paddle.errorTimer--;
+        }
+        
+        // Hedef pozisyon (topun Y pozisyonu - paddle merkezi + sabit hata)
+        targetY = ball.y - paddleCenter + (paddle.errorOffset || 0);
+        
+        // Topun hızına göre öngörü yap (zor seviyede)
+        if (aiDifficulty === 'hard' && ball.dx > 0) {
+            // Topun sağ kenara ulaşması için gereken süre
+            const timeToReach = (770 - ball.x) / ball.dx;
+            // Tahmin edilen Y pozisyonu
+            const predictedY = ball.y + (ball.dy * timeToReach);
+            // Tahmin edilen pozisyonu sınırlar içinde tut
+            const clampedPrediction = Math.max(0, Math.min(500, predictedY));
+            // Tahmin ve mevcut pozisyon arasında karışım yap
+            targetY = clampedPrediction - paddleCenter + (paddle.errorOffset || 0);
         }
     } else {
         // Top AI'dan uzaklaşıyorsa, raket yavaşça merkeze dön
-        if (paddle.y + 50 < 250) {
-            paddle.y += aiSpeed / 2;
-        } else if (paddle.y + 50 > 250) {
-            paddle.y -= aiSpeed / 2;
+        targetY = 200; // Canvas ortası - paddle yüksekliğinin yarısı
+    }
+    
+    // Hedef ile mevcut pozisyon arasındaki fark
+    const distance = targetY - paddle.y;
+    
+    // Ölü bölge kontrolü - çok küçük farklar için hareket etme (titreme önleme)
+    if (Math.abs(distance) > deadZone) {
+        // Yumuşak hareket için mesafeye göre hız ayarla
+        let moveSpeed = Math.min(aiSpeed, Math.abs(distance) / 10);
+        
+        // Minimum hız garantisi
+        moveSpeed = Math.max(moveSpeed, aiSpeed / 2);
+        
+        // Yönü belirle ve hareket et
+        if (distance > 0) {
+            paddle.y += moveSpeed;
+        } else {
+            paddle.y -= moveSpeed;
         }
     }
     

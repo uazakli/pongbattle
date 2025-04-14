@@ -601,4 +601,33 @@ footer {
     top: 50%;
     transform: translateY(-50%);
     color: var(--primary-light);
+}
+
+/* Footer linkleri için stil */
+.footer-links {
+    margin-bottom: 10px;
+    text-align: center;
+}
+
+.footer-links a {
+    color: #94a3b8;
+    text-decoration: none;
+    margin: 0 10px;
+    transition: color 0.3s;
+}
+
+.footer-links a:hover {
+    color: #00c2ff;
+}
+
+.last-updated {
+    font-style: italic;
+    color: #64748b;
+    text-align: right;
+    margin-top: 20px;
+    font-size: 0.9rem;
+}
+
+.section {
+    margin-bottom: 20px;
 } 

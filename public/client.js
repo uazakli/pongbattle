@@ -98,6 +98,67 @@ function resizeGameElements() {
     console.log(`Game elements resized for mobile: ${newWidth}x${newHeight}, scale: ${scale}`);
 }
 
+// Canvas ve dokunmatik kontroller için değişkenler
+let touchY = 0;
+let isTouching = false;
+
+// Dokunmatik ekran olaylarını dinle
+function setupTouchControls() {
+    const canvas = document.getElementById('pong');
+    
+    // Dokunma başladığında
+    canvas.addEventListener('touchstart', function(e) {
+        e.preventDefault(); // Sayfanın kaydırılmasını engelle
+        isTouching = true;
+        const touch = e.touches[0];
+        touchY = touch.clientY - canvas.getBoundingClientRect().top;
+        
+        // Paddle pozisyonunu güncelle
+        if (gameMode === 'online') {
+            socket.emit('paddle-move', { y: touchY });
+        } else if (gameMode === 'offline') {
+            playerPaddleY = touchY - PADDLE_HEIGHT / 2;
+            // Paddle'ın canvas dışına çıkmasını engelle
+            if (playerPaddleY < 0) playerPaddleY = 0;
+            if (playerPaddleY > CANVAS_HEIGHT - PADDLE_HEIGHT) playerPaddleY = CANVAS_HEIGHT - PADDLE_HEIGHT;
+        }
+    });
+    
+    // Dokunma hareket ettiğinde
+    canvas.addEventListener('touchmove', function(e) {
+        e.preventDefault(); // Sayfanın kaydırılmasını engelle
+        if (isTouching) {
+            const touch = e.touches[0];
+            touchY = touch.clientY - canvas.getBoundingClientRect().top;
+            
+            // Paddle pozisyonunu güncelle
+            if (gameMode === 'online') {
+                socket.emit('paddle-move', { y: touchY });
+            } else if (gameMode === 'offline') {
+                playerPaddleY = touchY - PADDLE_HEIGHT / 2;
+                // Paddle'ın canvas dışına çıkmasını engelle
+                if (playerPaddleY < 0) playerPaddleY = 0;
+                if (playerPaddleY > CANVAS_HEIGHT - PADDLE_HEIGHT) playerPaddleY = CANVAS_HEIGHT - PADDLE_HEIGHT;
+            }
+        }
+    });
+    
+    // Dokunma bittiğinde
+    canvas.addEventListener('touchend', function(e) {
+        isTouching = false;
+    });
+    
+    // Dokunma iptal edildiğinde
+    canvas.addEventListener('touchcancel', function(e) {
+        isTouching = false;
+    });
+}
+
+// Mobil cihaz kontrolü için bilgi mesajı
+if (/Android|webOS|iPhone|iPad|iPod|BlackBerry|IEMobile|Opera Mini/i.test(navigator.userAgent)) {
+    document.getElementById('controlsInfo').innerHTML = '👆 Controls: Swipe up and down on the game area to control the paddle';
+}
+
 // DOM yüklendiğinde
 document.addEventListener('DOMContentLoaded', function() {
     console.log('DOM loaded');

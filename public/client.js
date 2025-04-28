@@ -400,11 +400,12 @@ document.addEventListener('DOMContentLoaded', function() {
     // Ses butonları
     const muteBtn = document.getElementById('muteBtn');
     if (muteBtn) {
+        // Ses durumunu saklamak için global değişken
+        window.soundMuted = false;
+        
         muteBtn.addEventListener('click', function() {
-            const isMuted = this.classList.toggle('muted');
-            hitSound.muted = isMuted;
-            pointSound.muted = isMuted;
-            this.innerHTML = isMuted ? '🔇 Sound Off' : '🔊 Sound On';
+            window.soundMuted = !window.soundMuted;
+            this.innerHTML = window.soundMuted ? '🔇 Sound Off' : '🔊 Sound On';
         });
     }
     
@@ -433,6 +434,9 @@ document.addEventListener('DOMContentLoaded', function() {
             startOfflineGame();
         });
     }
+    
+    // Sesleri önceden yükle
+    preloadSounds();
 });
 
 // Rastgele oda kodu oluştur
@@ -780,8 +784,58 @@ socket.on('game-start', (state) => {
 // Oyun durumu güncellendi
 socket.on('game-state', (state) => {
     if (gameStarted && !waitingAfterPoint) {
+        // Son top pozisyonunu sakla (çarpışma tespiti için)
+        const lastBallX = lastBallPosition.x;
+        const lastBallY = lastBallPosition.y;
+        
+        // Yeni top pozisyonunu sakla
+        lastBallPosition.x = state.ball.x;
+        lastBallPosition.y = state.ball.y;
+        
+        // Oyun durumunu çiz
         drawGame(state);
+        
+        // Online modda da top fiziğini işle
+        if (!isOfflineGame) {
+            // Çarpışma sesi kontrolü
+            checkCollisionSound(state, lastBallX, lastBallY);
+        }
     }
+});
+
+// Çarpışma sesi kontrolü için yeni fonksiyon
+function checkCollisionSound(state, lastX, lastY) {
+    const ball = state.ball;
+    
+    // İlk kare ise kontrol etme
+    if (lastX === 0 && lastY === 0) return;
+    
+    // Top yön değiştirdi mi?
+    const xDirectionChanged = (ball.dx > 0 && lastX > ball.x) || (ball.dx < 0 && lastX < ball.x);
+    const yDirectionChanged = (ball.dy > 0 && lastY > ball.y) || (ball.dy < 0 && lastY < ball.y);
+    
+    // X yönü değiştiyse (raket vuruşu)
+    if (xDirectionChanged) {
+        console.log('X direction changed, playing hit sound');
+        playHitSound();
+    }
+    // Y yönü değiştiyse (duvar vuruşu)
+    else if (yDirectionChanged) {
+        console.log('Y direction changed, playing hit sound');
+        playHitSound();
+    }
+}
+
+// Özel bir olay ekleyelim - sunucudan gelen vuruş bildirimi
+socket.on('ball-hit', () => {
+    console.log('Received ball-hit event from server');
+    playHitSound();
+});
+
+// Özel bir olay ekleyelim - sunucudan gelen sayı bildirimi
+socket.on('point-sound', () => {
+    console.log('Received point-sound event from server');
+    playPointSound();
 });
 
 // Sayı oldu
@@ -791,8 +845,7 @@ socket.on('point-scored', (data) => {
     iAmPointLoser = data.youLost;
     
     // Sayı sesi çal
-    pointSound.currentTime = 0;
-    pointSound.play();
+    playPointSound();
     
     if (data.youLost) {
         drawText('You lost a point!\nClick to continue');
@@ -917,8 +970,8 @@ function checkBallHit(state) {
     if (lastBallPosition.x === 0 && lastBallPosition.y === 0) return;
     
     const ball = state.ball;
-    const leftPaddle = { x: 10, y: state.paddles.left.y, width: 10, height: 100 }; // 15 yerine 10
-    const rightPaddle = { x: 780, y: state.paddles.right.y, width: 10, height: 100 }; // 775 yerine 780
+    const leftPaddle = { x: 10, y: state.paddles.left.y, width: 10, height: 100 };
+    const rightPaddle = { x: 780, y: state.paddles.right.y, width: 10, height: 100 };
     
     // Top yön değiştirdi mi?
     const directionChanged = (
@@ -930,13 +983,11 @@ function checkBallHit(state) {
     if (directionChanged) {
         // Sol raket kontrolü
         if (Math.abs(ball.x - leftPaddle.x) < 20) {
-            hitSound.currentTime = 0;
-            hitSound.play();
+            playHitSound();
         }
         // Sağ raket kontrolü
         else if (Math.abs(ball.x - rightPaddle.x) < 20) {
-            hitSound.currentTime = 0;
-            hitSound.play();
+            playHitSound();
         }
     }
     
@@ -959,8 +1010,82 @@ function checkBallHit(state) {
         }
         
         // Ses çal
+        playHitSound();
+        
+        // Sunucuya top durumunu gönder (online mod için)
+        if (!isOfflineGame) {
+            socket.emit('ballUpdate', { dx: ball.dx, dy: ball.dy, x: ball.x, y: ball.y });
+        }
+    }
+}
+
+// Ses çalma fonksiyonu - ses sorunlarını çözmek için ayrı bir fonksiyon
+function playHitSound() {
+    if (window.soundMuted) return;
+    
+    console.log('Playing hit sound...');
+    
+    // Önce mevcut ses nesnesini kullanmayı dene
+    try {
         hitSound.currentTime = 0;
-        hitSound.play();
+        const playPromise = hitSound.play();
+        
+        if (playPromise !== undefined) {
+            playPromise.catch(error => {
+                console.log('Hit sound error with existing audio:', error);
+                playFallbackHitSound();
+            });
+        }
+    } catch (e) {
+        console.log('Hit sound error:', e);
+        playFallbackHitSound();
+    }
+}
+
+// Yedek ses çalma fonksiyonu
+function playFallbackHitSound() {
+    try {
+        // Yeni bir ses nesnesi oluştur
+        const tempHitSound = new Audio('/sounds/hit.mp3');
+        tempHitSound.volume = 0.5;
+        tempHitSound.play().catch(e => console.log('Fallback hit sound error:', e));
+    } catch (e) {
+        console.log('Fallback hit sound failed:', e);
+    }
+}
+
+// Sayı sesi çalma fonksiyonunu güncelle
+function playPointSound() {
+    if (window.soundMuted) return;
+    
+    console.log('Playing point sound...');
+    
+    // Önce mevcut ses nesnesini kullanmayı dene
+    try {
+        pointSound.currentTime = 0;
+        const playPromise = pointSound.play();
+        
+        if (playPromise !== undefined) {
+            playPromise.catch(error => {
+                console.log('Point sound error with existing audio:', error);
+                playFallbackPointSound();
+            });
+        }
+    } catch (e) {
+        console.log('Point sound error:', e);
+        playFallbackPointSound();
+    }
+}
+
+// Yedek sayı sesi çalma fonksiyonu
+function playFallbackPointSound() {
+    try {
+        // Yeni bir ses nesnesi oluştur
+        const tempPointSound = new Audio('/sounds/point.mp3');
+        tempPointSound.volume = 0.7;
+        tempPointSound.play().catch(e => console.log('Fallback point sound error:', e));
+    } catch (e) {
+        console.log('Fallback point sound failed:', e);
     }
 }
 
@@ -1049,8 +1174,7 @@ function startAiGameLoop(gameState) {
             }
             
             // Ses çal
-            hitSound.currentTime = 0;
-            hitSound.play();
+            playHitSound();
         }
         
         // AI raketini hareket ettir
@@ -1125,8 +1249,7 @@ function startAiGameLoop(gameState) {
             if (currentState.ball.dx < 0) currentState.ball.dx = -currentState.ball.dx;
             
             // Ses çal
-            hitSound.currentTime = 0;
-            hitSound.play();
+            playHitSound();
             
             // Topun raket içine girmesini önle
             currentState.ball.x = 10 + 10; // Paddle genişliği kadar ileri
@@ -1201,8 +1324,7 @@ function startAiGameLoop(gameState) {
             if (currentState.ball.dx > 0) currentState.ball.dx = -currentState.ball.dx;
             
             // Ses çal
-            hitSound.currentTime = 0;
-            hitSound.play();
+            playHitSound();
             
             // Topun raket içine girmesini önle
             currentState.ball.x = 780 - 10; // Paddle genişliği kadar geri
@@ -1212,14 +1334,12 @@ function startAiGameLoop(gameState) {
         if (currentState.ball.x <= 0) {
             // AI sayı aldı
             currentState.score.right++;
-            pointSound.currentTime = 0;
-            pointSound.play();
+            playPointSound();
             resetBall(currentState);
         } else if (currentState.ball.x >= 800) {
             // Oyuncu sayı aldı
             currentState.score.left++;
-            pointSound.currentTime = 0;
-            pointSound.play();
+            playPointSound();
             resetBall(currentState);
         }
         
@@ -1368,8 +1488,7 @@ function handleGameState(gameState) {
         }
         
         // Ses çal
-        hitSound.currentTime = 0;
-        hitSound.play();
+        playHitSound();
         
         // Sunucuya top durumunu gönder
         socket.emit('ballUpdate', { dx: ball.dx, dy: ball.dy, x: ball.x, y: ball.y });
@@ -1444,8 +1563,7 @@ function handleGameState(gameState) {
         if (ball.dx < 0) ball.dx = -ball.dx;
         
         // Ses çal
-        hitSound.currentTime = 0;
-        hitSound.play();
+        playHitSound();
         
         // Topun raket içine girmesini önle
         ball.x = 10 + 10; // Paddle genişliği kadar ileri
@@ -1523,8 +1641,7 @@ function handleGameState(gameState) {
         if (ball.dx > 0) ball.dx = -ball.dx;
         
         // Ses çal
-        hitSound.currentTime = 0;
-        hitSound.play();
+        playHitSound();
         
         // Topun raket içine girmesini önle
         ball.x = 780 - 10; // Paddle genişliği kadar geri
@@ -1532,4 +1649,18 @@ function handleGameState(gameState) {
         // Sunucuya top durumunu gönder
         socket.emit('ballUpdate', { dx: ball.dx, dy: ball.dy, x: ball.x, y: ball.y });
     }
+}
+
+// Sesleri önceden yükle
+function preloadSounds() {
+    // Ses dosyalarını yükle
+    hitSound.load();
+    pointSound.load();
+    
+    // Ses dosyalarının yüklendiğinden emin olmak için
+    console.log('Preloading sounds...');
+    
+    // Ses dosyalarının yollarını kontrol et
+    console.log('Hit sound path:', hitSound.src);
+    console.log('Point sound path:', pointSound.src);
 }

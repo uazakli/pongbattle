@@ -279,6 +279,24 @@ io.on("connection", (socket) => {
         console.log(`Created and updated paddle ${side} to y:${data.y}`);
     }
   });
+
+  // Top güncellemesi olayını dinle
+  socket.on('ballUpdate', (ballData) => {
+    const player = players.get(socket.id);
+    if (!player || !player.roomId) return;
+    
+    const room = rooms.get(player.roomId);
+    if (!room || !room.gameState) return;
+    
+    // Top verilerini güncelle
+    room.gameState.ball.dx = ballData.dx;
+    room.gameState.ball.dy = ballData.dy;
+    room.gameState.ball.x = ballData.x;
+    room.gameState.ball.y = ballData.y;
+    
+    // Güncellenmiş oyun durumunu odadaki tüm oyunculara gönder
+    io.to(player.roomId).emit('game-state', room.gameState);
+  });
 });
 
 function createRoom(roomId, player1Id, player2Id) {
@@ -353,27 +371,37 @@ function startGameLoop(room) {
 function updateGame(room) {
   const state = room.gameState;
   
+  // Önceki top pozisyonunu sakla
+  const prevBallX = state.ball.x;
+  const prevBallY = state.ball.y;
+  const prevDx = state.ball.dx;
+  const prevDy = state.ball.dy;
+  
+  // Topu hareket ettir
   state.ball.x += state.ball.dx;
   state.ball.y += state.ball.dy;
   
-  if (state.ball.y <= 0 || state.ball.y >= CANVAS_HEIGHT) {
-    state.ball.dy = -state.ball.dy;
+  // Offline moddaki top fiziği ve çarpışma mantığını kullan
+  checkBallHit(state);
+  
+  // Yön değişimi kontrolü - vuruş sesi için
+  const xDirectionChanged = (prevDx > 0 && state.ball.dx < 0) || (prevDx < 0 && state.ball.dx > 0);
+  const yDirectionChanged = (prevDy > 0 && state.ball.dy < 0) || (prevDy < 0 && state.ball.dy > 0);
+  
+  // Yön değiştiyse vuruş sesi çal
+  if (xDirectionChanged || yDirectionChanged) {
+    io.to(room.id).emit('ball-hit');
   }
-
-  if (state.ball.x <= 30 && state.ball.y >= state.paddles.left.y && state.ball.y <= state.paddles.left.y + PADDLE_HEIGHT) {
-    state.ball.dx = -state.ball.dx;
-    state.ball.dx *= 1.05;
-  } else if (state.ball.x >= CANVAS_WIDTH - 30 && state.ball.y >= state.paddles.right.y && state.ball.y <= state.paddles.right.y + PADDLE_HEIGHT) {
-    state.ball.dx = -state.ball.dx;
-    state.ball.dx *= 1.05;
-  }
-
+  
+  // Sayı kontrolü
   if (state.ball.x <= 0) {
     state.score.right++;
+    io.to(room.id).emit('point-sound');
     handlePoint(room, 'right');
     return;
   } else if (state.ball.x >= CANVAS_WIDTH) {
     state.score.left++;
+    io.to(room.id).emit('point-sound');
     handlePoint(room, 'left');
     return;
   }

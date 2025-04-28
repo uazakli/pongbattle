@@ -1140,7 +1140,7 @@ function startOfflineGame() {
     addChatMessage('System', `Offline game started! Difficulty: ${aiDifficulty.charAt(0).toUpperCase() + aiDifficulty.slice(1)}`);
 }
 
-// Offline mod için AI oyun döngüsünde hızlanma oranını değiştir
+// Offline mod için AI oyun döngüsünde maksimum hızı değiştir
 function startAiGameLoop(gameState) {
     const aiGameInterval = setInterval(() => {
         if (!isOfflineGame) {
@@ -1235,8 +1235,8 @@ function startAiGameLoop(gameState) {
             // Başlangıç hızı (5.5)
             const initialSpeed = 5.5;
             
-            // Maksimum hız (başlangıç hızının 10 katı)
-            const maxSpeed = initialSpeed * 2.5; // Yaklaşık 10 vuruşta maksimum hıza ulaşır
+            // Maksimum hız (başlangıç hızının 2 katı) - 2.5 yerine 2
+            const maxSpeed = initialSpeed * 2.0; // Maksimum hız 11.0
             
             // Hızı artır ama maksimum hızı geçme
             const speed = Math.min(Math.max(currentSpeed * speedIncrease, 7.7), maxSpeed);
@@ -1310,8 +1310,8 @@ function startAiGameLoop(gameState) {
             // Başlangıç hızı (5.5)
             const initialSpeed = 5.5;
             
-            // Maksimum hız (başlangıç hızının 10 katı)
-            const maxSpeed = initialSpeed * 2.5; // Yaklaşık 10 vuruşta maksimum hıza ulaşır
+            // Maksimum hız (başlangıç hızının 2 katı) - 2.5 yerine 2
+            const maxSpeed = initialSpeed * 2.0; // Maksimum hız 11.0
             
             // Hızı artır ama maksimum hızı geçme
             const speed = Math.min(Math.max(currentSpeed * speedIncrease, 7.7), maxSpeed);
@@ -1459,7 +1459,7 @@ function resetBall(gameState) {
     gameState.ball.dy = newDy;
 }
 
-// Online mod için handleGameState fonksiyonunda hızlanma oranını değiştir
+// Online mod için handleGameState fonksiyonunda maksimum hızı değiştir
 function handleGameState(gameState) {
     // Sunucudan gelen oyun durumunu güncelle
     window.gameState = gameState;
@@ -1549,8 +1549,8 @@ function handleGameState(gameState) {
         // Başlangıç hızı (5.5)
         const initialSpeed = 5.5;
         
-        // Maksimum hız (başlangıç hızının 2.5 katı)
-        const maxSpeed = initialSpeed * 2.5; // Yaklaşık 10 vuruşta maksimum hıza ulaşır
+        // Maksimum hız (başlangıç hızının 2 katı) - 2.5 yerine 2
+        const maxSpeed = initialSpeed * 2.0; // Maksimum hız 11.0
         
         // Hızı artır ama maksimum hızı geçme
         const speed = Math.min(Math.max(currentSpeed * speedIncrease, 7.7), maxSpeed);
@@ -1627,8 +1627,8 @@ function handleGameState(gameState) {
         // Başlangıç hızı (5.5)
         const initialSpeed = 5.5;
         
-        // Maksimum hız (başlangıç hızının 2.5 katı)
-        const maxSpeed = initialSpeed * 2.5; // Yaklaşık 10 vuruşta maksimum hıza ulaşır
+        // Maksimum hız (başlangıç hızının 2 katı) - 2.5 yerine 2
+        const maxSpeed = initialSpeed * 2.0; // Maksimum hız 11.0
         
         // Hızı artır ama maksimum hızı geçme
         const speed = Math.min(Math.max(currentSpeed * speedIncrease, 7.7), maxSpeed);

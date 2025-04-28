@@ -640,8 +640,8 @@ function checkBallHit(gameState) {
         // Başlangıç hızı (5.5)
         const initialSpeed = 5.5;
         
-        // Maksimum hız (başlangıç hızının 2.5 katı)
-        const maxSpeed = initialSpeed * 2.5; // Yaklaşık 10 vuruşta maksimum hıza ulaşır
+        // Maksimum hız (başlangıç hızının 2 katı) - 2.5 yerine 2
+        const maxSpeed = initialSpeed * 2.0; // Maksimum hız 11.0
         
         // Hızı artır ama maksimum hızı geçme
         const speed = Math.min(Math.max(currentSpeed * speedIncrease, 7.7), maxSpeed);
@@ -712,8 +712,8 @@ function checkBallHit(gameState) {
         // Başlangıç hızı (5.5)
         const initialSpeed = 5.5;
         
-        // Maksimum hız (başlangıç hızının 2.5 katı)
-        const maxSpeed = initialSpeed * 2.5; // Yaklaşık 10 vuruşta maksimum hıza ulaşır
+        // Maksimum hız (başlangıç hızının 2 katı) - 2.5 yerine 2
+        const maxSpeed = initialSpeed * 2.0; // Maksimum hız 11.0
         
         // Hızı artır ama maksimum hızı geçme
         const speed = Math.min(Math.max(currentSpeed * speedIncrease, 7.7), maxSpeed);

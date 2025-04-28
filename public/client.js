@@ -1140,7 +1140,7 @@ function startOfflineGame() {
     addChatMessage('System', `Offline game started! Difficulty: ${aiDifficulty.charAt(0).toUpperCase() + aiDifficulty.slice(1)}`);
 }
 
-// AI oyun döngüsü
+// Offline mod için AI oyun döngüsünde hızlanma oranını değiştir
 function startAiGameLoop(gameState) {
     const aiGameInterval = setInterval(() => {
         if (!isOfflineGame) {
@@ -1229,8 +1229,8 @@ function startAiGameLoop(gameState) {
             // Mevcut hızı hesapla
             const currentSpeed = Math.sqrt(currentState.ball.dx * currentState.ball.dx + currentState.ball.dy * currentState.ball.dy);
             
-            // Her vuruşta sabit %10 hızlanma
-            const speedIncrease = 1.1; // %10 artış
+            // Her vuruşta sabit %5 hızlanma (1.05)
+            const speedIncrease = 1.05; // %5 artış
             
             // Başlangıç hızı (5.5)
             const initialSpeed = 5.5;
@@ -1304,8 +1304,8 @@ function startAiGameLoop(gameState) {
             // Mevcut hızı hesapla
             const currentSpeed = Math.sqrt(currentState.ball.dx * currentState.ball.dx + currentState.ball.dy * currentState.ball.dy);
             
-            // Her vuruşta sabit %10 hızlanma
-            const speedIncrease = 1.1; // %10 artış
+            // Her vuruşta sabit %5 hızlanma (1.05)
+            const speedIncrease = 1.05; // %5 artış
             
             // Başlangıç hızı (5.5)
             const initialSpeed = 5.5;
@@ -1459,7 +1459,7 @@ function resetBall(gameState) {
     gameState.ball.dy = newDy;
 }
 
-// Sunucudan gelen oyun durumunu işle
+// Online mod için handleGameState fonksiyonunda hızlanma oranını değiştir
 function handleGameState(gameState) {
     // Sunucudan gelen oyun durumunu güncelle
     window.gameState = gameState;
@@ -1543,8 +1543,8 @@ function handleGameState(gameState) {
         // Mevcut hızı hesapla
         const currentSpeed = Math.sqrt(ball.dx * ball.dx + ball.dy * ball.dy);
         
-        // Her vuruşta sabit %10 hızlanma
-        const speedIncrease = 1.1; // %10 artış
+        // Her vuruşta sabit %5 hızlanma (1.05)
+        const speedIncrease = 1.05; // %5 artış
         
         // Başlangıç hızı (5.5)
         const initialSpeed = 5.5;
@@ -1621,8 +1621,8 @@ function handleGameState(gameState) {
         // Mevcut hızı hesapla
         const currentSpeed = Math.sqrt(ball.dx * ball.dx + ball.dy * ball.dy);
         
-        // Her vuruşta sabit %10 hızlanma
-        const speedIncrease = 1.1; // %10 artış
+        // Her vuruşta sabit %5 hızlanma (1.05)
+        const speedIncrease = 1.05; // %5 artış
         
         // Başlangıç hızı (5.5)
         const initialSpeed = 5.5;

@@ -634,8 +634,8 @@ function checkBallHit(gameState) {
         // Mevcut hızı hesapla
         const currentSpeed = Math.sqrt(ball.dx * ball.dx + ball.dy * ball.dy);
         
-        // Her vuruşta sabit %10 hızlanma
-        const speedIncrease = 1.1; // %10 artış
+        // Her vuruşta sabit %5 hızlanma (1.1 yerine 1.05)
+        const speedIncrease = 1.05; // %5 artış
         
         // Başlangıç hızı (5.5)
         const initialSpeed = 5.5;
@@ -706,8 +706,8 @@ function checkBallHit(gameState) {
         // Mevcut hızı hesapla
         const currentSpeed = Math.sqrt(ball.dx * ball.dx + ball.dy * ball.dy);
         
-        // Her vuruşta sabit %10 hızlanma
-        const speedIncrease = 1.1; // %10 artış
+        // Her vuruşta sabit %5 hızlanma (1.1 yerine 1.05)
+        const speedIncrease = 1.05; // %5 artış
         
         // Başlangıç hızı (5.5)
         const initialSpeed = 5.5;

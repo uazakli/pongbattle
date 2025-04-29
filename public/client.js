@@ -253,12 +253,35 @@ document.addEventListener('DOMContentLoaded', function() {
     // Geri dönme butonu
     const backBtn = document.getElementById('backBtn');
     backBtn.addEventListener('click', function() {
-        // Sunucuya oyundan ayrılma isteği gönder
-        socket.emit('leave-game');
+        console.log('Back to lobby button clicked');
         
+        // Offline oyun döngüsünü temizle
+        if (window.aiGameInterval) {
+            console.log('Clearing AI game interval');
+            clearInterval(window.aiGameInterval);
+            window.aiGameInterval = null;
+        }
+        
+        // Online oyundan ayrılma
+        if (!isOfflineGame) {
+            // Sunucuya oyundan ayrılma isteği gönder
+            socket.emit('leave-game');
+        }
+        
+        // Oyun durumunu sıfırla
         resetGameState();
+        
+        // Butonları sıfırla
+        resetLobbyButtons();
+        
+        // Lobiye dön
         document.getElementById('game').style.display = 'none';
         document.getElementById('lobby').style.display = 'block';
+        
+        // Analytics: Lobiye dönüş olayını gönder
+        sendAnalyticsEvent('navigation', 'back_to_lobby');
+        
+        console.log('Returned to lobby, game state reset');
     });
     
     // Chat formu
@@ -451,44 +474,29 @@ function generateRoomCode() {
 
 // Oyun durumunu sıfırla
 function resetGameState() {
+    // Offline oyun döngüsünü temizle
+    if (window.aiGameInterval) {
+        clearInterval(window.aiGameInterval);
+        window.aiGameInterval = null;
+    }
+    
+    // Oyun durumunu sıfırla
+    isOfflineGame = false;
     gameStarted = false;
     waitingForOpponent = false;
     playerReady = false;
     opponentReady = false;
     waitingAfterPoint = false;
     iAmPointLoser = false;
-    isOfflineGame = false;
+    roomCode = '';
     
-    // Butonları sıfırla
-    const randomMatchBtn = document.getElementById('randomMatchBtn');
-    if (randomMatchBtn) {
-        randomMatchBtn.disabled = false;
-        randomMatchBtn.textContent = 'Find Match';
-    }
+    // Oyun durumu nesnesini sıfırla
+    window.gameState = null;
     
-    const createRoomBtn = document.getElementById('createRoomBtn');
-    if (createRoomBtn) {
-        createRoomBtn.disabled = false;
-        createRoomBtn.textContent = 'Create Room';
-    }
+    // Son top pozisyonunu sıfırla
+    lastBallPosition = { x: 0, y: 0 };
     
-    const joinRoomBtn = document.getElementById('joinRoomBtn');
-    if (joinRoomBtn) {
-        joinRoomBtn.disabled = false;
-        joinRoomBtn.textContent = 'Join Room';
-    }
-    
-    // Oda kodu ekranını gizle
-    const roomCodeDisplay = document.getElementById('roomCodeDisplay');
-    if (roomCodeDisplay) {
-        roomCodeDisplay.style.display = 'none';
-    }
-    
-    // Chat mesajlarını temizle
-    const chatMessages = document.getElementById('chatMessages');
-    if (chatMessages) {
-        chatMessages.innerHTML = '';
-    }
+    console.log('Game state fully reset');
 }
 
 // Chat mesajı ekle
@@ -1094,74 +1102,167 @@ let onlinePlayerCount = 0;
 
 // Socket olayları bölümüne ekle
 socket.on('player-count-update', (count) => {
+    console.log('Player count update received:', count);
     onlinePlayerCount = count;
-    updatePlayerCountDisplay();
+    updatePlayerCount();
 });
 
-// Oyuncu sayısını güncelleyen fonksiyon
-function updatePlayerCountDisplay() {
+// Oyuncu sayısını güncelleme fonksiyonu - tamamen yeniden yazıldı
+function updatePlayerCount() {
     const playerCountElement = document.getElementById('playerCount');
-    if (playerCountElement) {
-        playerCountElement.textContent = onlinePlayerCount;
+    if (playerCountElement && typeof onlinePlayerCount !== 'undefined') {
+        // Sadece sayıyı güncelle, metin HTML'de olmalı
+        playerCountElement.innerHTML = onlinePlayerCount;
         
-        // Oyuncu sayısı metni için doğru çoğul/tekil form
-        const playerTextElement = document.getElementById('playerText');
-        if (playerTextElement) {
-            playerTextElement.textContent = onlinePlayerCount === 1 ? 'player' : 'players';
-        }
+        console.log('Player count updated to:', onlinePlayerCount);
     }
 }
 
-// Offline oyun başlat
+// Mobil cihazlar için dokunmatik olayları iyileştir
+document.addEventListener('DOMContentLoaded', function() {
+    const canvas = document.getElementById('pong');
+    
+    // Mobil cihaz kontrollerini ayarla
+    if (isMobileDevice) {
+        console.log('Setting up mobile touch controls');
+        
+        // Dokunmatik olayları ekle
+        canvas.addEventListener('touchstart', handleTouchMove);
+        canvas.addEventListener('touchmove', handleTouchMove);
+        
+        // Varsayılan davranışı engelle (sayfanın kaydırılmasını önle)
+        canvas.addEventListener('touchmove', function(e) {
+            e.preventDefault();
+        }, { passive: false });
+        
+        // Tüm dokunmatik yüzeyi kullan
+        document.body.addEventListener('touchmove', function(e) {
+            e.preventDefault();
+        }, { passive: false });
+    }
+});
+
+// Dokunmatik hareket işleme fonksiyonu
+function handleTouchMove(e) {
+    e.preventDefault();
+    
+    // Dokunmatik pozisyonu al
+    const touch = e.touches[0];
+    const canvasRect = document.getElementById('pong').getBoundingClientRect();
+    
+    // Dokunmatik Y pozisyonunu canvas koordinatlarına dönüştür
+    const touchY = touch.clientY - canvasRect.top;
+    
+    // Canvas ölçeğini hesapla
+    const canvasScale = canvasRect.height / 500; // 500 = orijinal canvas yüksekliği
+    
+    // Ölçeklendirilmiş Y pozisyonu
+    const scaledY = touchY / canvasScale;
+    
+    // Paddle pozisyonunu güncelle
+    if (isOfflineGame) {
+        // Offline mod için paddle pozisyonunu doğrudan güncelle
+        const currentState = window.gameState;
+        if (currentState) {
+            // Paddle'ın ortasını dokunulan noktaya getir
+            currentState.paddles.left.y = Math.max(0, Math.min(400, scaledY - 50));
+            
+            // Konsola bilgi yazdır
+            console.log('Mobile touch: updating offline paddle position to', currentState.paddles.left.y);
+        }
+    } else {
+        // Online mod için sunucuya paddle pozisyonunu gönder
+        socket.emit('paddleMove', { y: Math.max(0, Math.min(400, scaledY - 50)) });
+    }
+    
+    // Son fare pozisyonunu güncelle
+    lastMouseY = scaledY;
+}
+
+// Offline oyun başlatma fonksiyonunu güncelle
 function startOfflineGame() {
+    // Önceki oyun durumunu temizle
+    resetGameState();
+    
     isOfflineGame = true;
     gameStarted = true;
     
-    // Başlangıç oyun durumu
-    const gameState = {
-        ball: { x: 400, y: 250, dx: 5, dy: 3 },
+    // Başlangıç oyun durumunu oluştur
+    const initialState = {
+        ball: { 
+            x: 400, 
+            y: 250, 
+            dx: 5.5, 
+            dy: 3.3, 
+            radius: 10 
+        },
         paddles: {
-            left: { y: 200 },
-            right: { y: 200 }
+            left: { y: 200, h: 100 },
+            right: { y: 200, h: 100 }
         },
         score: { left: 0, right: 0 }
     };
     
-    // Oyun durumunu global olarak sakla
-    window.offlineGameState = gameState;
+    // Global oyun durumunu ayarla
+    window.gameState = initialState;
     
     // Oyunu çiz
-    drawGame(gameState);
+    drawGame(initialState);
     
-    // AI döngüsünü başlat
-    startAiGameLoop(gameState);
+    // AI oyun döngüsünü başlat
+    window.aiGameInterval = startAiGameLoop(initialState);
     
-    // Sistem mesajı
-    addChatMessage('System', `Offline game started! Difficulty: ${aiDifficulty.charAt(0).toUpperCase() + aiDifficulty.slice(1)}`);
+    // Mobil cihazlarda ölçeklendirmeyi kontrol et
+    if (isMobileDevice) {
+        resizeGameElements();
+        
+        // Mobil cihazlar için özel mesaj
+        addChatMessage('System', 'Touch the screen to move your paddle.');
+        
+        // Konsola bilgi yazdır
+        console.log('Mobile offline game started. Touch controls enabled.');
+    }
+    
+    console.log('Offline game started with initial state:', initialState);
 }
 
-// Offline mod için AI oyun döngüsünde maksimum hızı değiştir
-function startAiGameLoop(gameState) {
-    const aiGameInterval = setInterval(() => {
-        if (!isOfflineGame) {
-            clearInterval(aiGameInterval);
+// Offline mod için AI oyun döngüsünü tamamen yeniden yaz
+function startAiGameLoop(initialState) {
+    console.log('Starting AI game loop');
+    
+    // Önceki interval'ı temizle (eğer varsa)
+    if (window.aiGameInterval) {
+        clearInterval(window.aiGameInterval);
+    }
+    
+    return setInterval(() => {
+        // Mevcut oyun durumunu al
+        const currentState = window.gameState;
+        
+        if (!currentState) {
+            console.error('Game state is undefined in AI loop');
             return;
         }
         
-        // Global oyun durumunu kullan
-        const currentState = window.offlineGameState || gameState;
+        // Fare/dokunmatik hareketi - sadece mobil olmayan cihazlarda
+        if (!isMobileDevice) {
+            // Fare hareketi ile paddle'ı güncelle
+            currentState.paddles.left.y = Math.max(0, Math.min(400, lastMouseY - 50));
+        }
+        // Not: Mobil cihazlarda paddle pozisyonu dokunmatik olay tarafından güncellenir
+        
+        // AI raketini hareket ettir
+        moveAI(currentState);
         
         // Topu hareket ettir
         currentState.ball.x += currentState.ball.dx;
         currentState.ball.y += currentState.ball.dy;
         
-        // Üst ve alt duvar çarpışmaları
+        // Duvar çarpışmaları
         if (currentState.ball.y <= 10 || currentState.ball.y >= 490) {
-            // Sadece yön değiştir, hızı değiştirme
             currentState.ball.dy = -currentState.ball.dy;
             
             // Topun Y hızı çok düşükse minimum bir değer garantile
-            // Minimum değeri %10 artır (2 yerine 2.2)
             if (Math.abs(currentState.ball.dy) < 2.2) {
                 currentState.ball.dy = 2.2 * Math.sign(currentState.ball.dy);
             }
@@ -1177,66 +1278,53 @@ function startAiGameLoop(gameState) {
             playHitSound();
         }
         
-        // AI raketini hareket ettir
-        moveAiPaddle(currentState);
-        
         // Sol raket çarpışması (oyuncu)
-        if (currentState.ball.x <= 10 && 
+        if (currentState.ball.x <= 20 && 
             currentState.ball.y >= currentState.paddles.left.y && 
             currentState.ball.y <= currentState.paddles.left.y + 100) {
             
             // Paddle'ın ortasını bul
             const paddleMiddle = currentState.paddles.left.y + 50;
             
-            // Topun paddle ortasına göre konumunu hesapla (-50 ile +50 arası)
+            // Topun paddle ortasına göre konumunu hesapla
             const hitRelativeToMiddle = currentState.ball.y - paddleMiddle;
             
-            // Açıyı belirle - daha az keskin açılar
+            // Açıyı belirle
             let angle;
             
             if (hitRelativeToMiddle < -40) {
-                // Üst bölüm 1 (en üst) - daha az keskin yukarı açı
-                angle = -45 * Math.PI / 180; // -70 yerine -45 derece
+                angle = -45 * Math.PI / 180;
             } else if (hitRelativeToMiddle < -30) {
-                // Üst bölüm 2 - daha az keskin yukarı açı
-                angle = -35 * Math.PI / 180; // -55 yerine -35 derece
+                angle = -35 * Math.PI / 180;
             } else if (hitRelativeToMiddle < -20) {
-                // Üst bölüm 3 - orta yukarı açı
-                angle = -25 * Math.PI / 180; // -40 yerine -25 derece
+                angle = -25 * Math.PI / 180;
             } else if (hitRelativeToMiddle < -10) {
-                // Üst bölüm 4 - hafif yukarı açı
-                angle = -15 * Math.PI / 180; // -25 yerine -15 derece
+                angle = -15 * Math.PI / 180;
             } else if (hitRelativeToMiddle < 0) {
-                // Üst bölüm 5 (ortaya yakın) - çok hafif yukarı açı
-                angle = -5 * Math.PI / 180; // -10 yerine -5 derece
+                angle = -5 * Math.PI / 180;
             } else if (hitRelativeToMiddle < 10) {
-                // Alt bölüm 1 (ortaya yakın) - çok hafif aşağı açı
-                angle = 5 * Math.PI / 180; // 10 yerine 5 derece
+                angle = 5 * Math.PI / 180;
             } else if (hitRelativeToMiddle < 20) {
-                // Alt bölüm 2 - hafif aşağı açı
-                angle = 15 * Math.PI / 180; // 25 yerine 15 derece
+                angle = 15 * Math.PI / 180;
             } else if (hitRelativeToMiddle < 30) {
-                // Alt bölüm 3 - orta aşağı açı
-                angle = 25 * Math.PI / 180; // 40 yerine 25 derece
+                angle = 25 * Math.PI / 180;
             } else if (hitRelativeToMiddle < 40) {
-                // Alt bölüm 4 - daha az keskin aşağı açı
-                angle = 35 * Math.PI / 180; // 55 yerine 35 derece
+                angle = 35 * Math.PI / 180;
             } else {
-                // Alt bölüm 5 (en alt) - daha az keskin aşağı açı
-                angle = 45 * Math.PI / 180; // 70 yerine 45 derece
+                angle = 45 * Math.PI / 180;
             }
             
             // Mevcut hızı hesapla
             const currentSpeed = Math.sqrt(currentState.ball.dx * currentState.ball.dx + currentState.ball.dy * currentState.ball.dy);
             
-            // Her vuruşta sabit %5 hızlanma (1.05)
-            const speedIncrease = 1.05; // %5 artış
+            // Her vuruşta sabit %5 hızlanma
+            const speedIncrease = 1.05;
             
-            // Başlangıç hızı (5.5)
+            // Başlangıç hızı
             const initialSpeed = 5.5;
             
-            // Maksimum hız (başlangıç hızının 2 katı) - 2.5 yerine 2
-            const maxSpeed = initialSpeed * 2.0; // Maksimum hız 11.0
+            // Maksimum hız
+            const maxSpeed = initialSpeed * 2.0;
             
             // Hızı artır ama maksimum hızı geçme
             const speed = Math.min(Math.max(currentSpeed * speedIncrease, 7.7), maxSpeed);
@@ -1252,7 +1340,7 @@ function startAiGameLoop(gameState) {
             playHitSound();
             
             // Topun raket içine girmesini önle
-            currentState.ball.x = 10 + 10; // Paddle genişliği kadar ileri
+            currentState.ball.x = 20;
         }
         
         // Sağ raket çarpışması (AI)
@@ -1263,55 +1351,45 @@ function startAiGameLoop(gameState) {
             // Paddle'ın ortasını bul
             const paddleMiddle = currentState.paddles.right.y + 50;
             
-            // Topun paddle ortasına göre konumunu hesapla (-50 ile +50 arası)
+            // Topun paddle ortasına göre konumunu hesapla
             const hitRelativeToMiddle = currentState.ball.y - paddleMiddle;
             
-            // Açıyı belirle - daha az keskin açılar
+            // Açıyı belirle
             let angle;
             
             if (hitRelativeToMiddle < -40) {
-                // Üst bölüm 1 (en üst) - daha az keskin yukarı açı
-                angle = -45 * Math.PI / 180; // -70 yerine -45 derece
+                angle = -45 * Math.PI / 180;
             } else if (hitRelativeToMiddle < -30) {
-                // Üst bölüm 2 - daha az keskin yukarı açı
-                angle = -35 * Math.PI / 180; // -55 yerine -35 derece
+                angle = -35 * Math.PI / 180;
             } else if (hitRelativeToMiddle < -20) {
-                // Üst bölüm 3 - orta yukarı açı
-                angle = -25 * Math.PI / 180; // -40 yerine -25 derece
+                angle = -25 * Math.PI / 180;
             } else if (hitRelativeToMiddle < -10) {
-                // Üst bölüm 4 - hafif yukarı açı
-                angle = -15 * Math.PI / 180; // -25 yerine -15 derece
+                angle = -15 * Math.PI / 180;
             } else if (hitRelativeToMiddle < 0) {
-                // Üst bölüm 5 (ortaya yakın) - çok hafif yukarı açı
-                angle = -5 * Math.PI / 180; // -10 yerine -5 derece
+                angle = -5 * Math.PI / 180;
             } else if (hitRelativeToMiddle < 10) {
-                // Alt bölüm 1 (ortaya yakın) - çok hafif aşağı açı
-                angle = 5 * Math.PI / 180; // 10 yerine 5 derece
+                angle = 5 * Math.PI / 180;
             } else if (hitRelativeToMiddle < 20) {
-                // Alt bölüm 2 - hafif aşağı açı
-                angle = 15 * Math.PI / 180; // 25 yerine 15 derece
+                angle = 15 * Math.PI / 180;
             } else if (hitRelativeToMiddle < 30) {
-                // Alt bölüm 3 - orta aşağı açı
-                angle = 25 * Math.PI / 180; // 40 yerine 25 derece
+                angle = 25 * Math.PI / 180;
             } else if (hitRelativeToMiddle < 40) {
-                // Alt bölüm 4 - daha az keskin aşağı açı
-                angle = 35 * Math.PI / 180; // 55 yerine 35 derece
+                angle = 35 * Math.PI / 180;
             } else {
-                // Alt bölüm 5 (en alt) - daha az keskin aşağı açı
-                angle = 45 * Math.PI / 180; // 70 yerine 45 derece
+                angle = 45 * Math.PI / 180;
             }
             
             // Mevcut hızı hesapla
             const currentSpeed = Math.sqrt(currentState.ball.dx * currentState.ball.dx + currentState.ball.dy * currentState.ball.dy);
             
-            // Her vuruşta sabit %5 hızlanma (1.05)
-            const speedIncrease = 1.05; // %5 artış
+            // Her vuruşta sabit %5 hızlanma
+            const speedIncrease = 1.05;
             
-            // Başlangıç hızı (5.5)
+            // Başlangıç hızı
             const initialSpeed = 5.5;
             
-            // Maksimum hız (başlangıç hızının 2 katı) - 2.5 yerine 2
-            const maxSpeed = initialSpeed * 2.0; // Maksimum hız 11.0
+            // Maksimum hız
+            const maxSpeed = initialSpeed * 2.0;
             
             // Hızı artır ama maksimum hızı geçme
             const speed = Math.min(Math.max(currentSpeed * speedIncrease, 7.7), maxSpeed);
@@ -1327,7 +1405,7 @@ function startAiGameLoop(gameState) {
             playHitSound();
             
             // Topun raket içine girmesini önle
-            currentState.ball.x = 780 - 10; // Paddle genişliği kadar geri
+            currentState.ball.x = 780;
         }
         
         // Sayı kontrolü
@@ -1349,8 +1427,27 @@ function startAiGameLoop(gameState) {
     }, 1000/60); // 60 FPS
 }
 
-// AI raketini hareket ettir
-function moveAiPaddle(gameState) {
+// Top sıfırlama fonksiyonu
+function resetBall(gameState) {
+    gameState.ball.x = 400;
+    gameState.ball.y = 250;
+    
+    // Rastgele X yönü
+    gameState.ball.dx = (Math.random() > 0.5 ? 5.5 : -5.5);
+    
+    // Rastgele Y yönü
+    let newDy = (Math.random() > 0.5 ? 3.3 : -3.3) * (Math.random() * 2 + 1);
+    
+    // Minimum Y hızı garantisi
+    if (Math.abs(newDy) < 2.2) {
+        newDy = 2.2 * Math.sign(newDy || 1);
+    }
+    
+    gameState.ball.dy = newDy;
+}
+
+// AI raketini hareket ettir - tamamen yeniden yaz
+function moveAI(gameState) {
     const paddle = gameState.paddles.right;
     const ball = gameState.ball;
     
@@ -1382,7 +1479,7 @@ function moveAiPaddle(gameState) {
     }
     
     // Hedef pozisyon
-    let targetY = 0;
+    let targetY;
     
     // Top sağa doğru gidiyorsa (AI'ya doğru) veya top orta çizginin sağındaysa
     if (ball.dx > 0 || ball.x > 400) {
@@ -1403,7 +1500,7 @@ function moveAiPaddle(gameState) {
         // Topun hızına göre öngörü yap (zor seviyede)
         if (aiDifficulty === 'hard' && ball.dx > 0) {
             // Topun sağ kenara ulaşması için gereken süre
-            const timeToReach = (780 - ball.x) / ball.dx; // 775 yerine 780
+            const timeToReach = (780 - ball.x) / ball.dx;
             // Tahmin edilen Y pozisyonu
             const predictedY = ball.y + (ball.dy * timeToReach);
             // Tahmin edilen pozisyonu sınırlar içinde tut
@@ -1439,218 +1536,6 @@ function moveAiPaddle(gameState) {
     paddle.y = Math.max(0, Math.min(400, paddle.y));
 }
 
-// Topu sıfırla - ilk hızı %10 artır
-function resetBall(gameState) {
-    gameState.ball.x = 400;
-    gameState.ball.y = 250;
-    
-    // İlk X hızını %10 artır (5 yerine 5.5)
-    gameState.ball.dx = (Math.random() > 0.5 ? 5.5 : -5.5);
-    
-    // Y hızını hesapla ve minimum değer garantile
-    // İlk Y hızını da %10 artır
-    let newDy = (Math.random() > 0.5 ? 3.3 : -3.3) * (Math.random() * 2 + 1);
-    
-    // Minimum Y hızı garantisi
-    if (Math.abs(newDy) < 2.2) { // Minimum değeri de %10 artır
-        newDy = 2.2 * Math.sign(newDy || 1);
-    }
-    
-    gameState.ball.dy = newDy;
-}
-
-// Online mod için handleGameState fonksiyonunda maksimum hızı değiştir
-function handleGameState(gameState) {
-    // Sunucudan gelen oyun durumunu güncelle
-    window.gameState = gameState;
-    
-    // Oyunu çiz
-    drawGame(gameState);
-    
-    // Topa temas kontrolü - online modda da aynı dinamikleri uygula
-    const ball = gameState.ball;
-    
-    // Üst ve alt duvar çarpışmaları
-    if (ball.y <= 10 || ball.y >= 490) {
-        // Sadece yön değiştir, hızı değiştirme
-        ball.dy = -ball.dy;
-        
-        // Topun Y hızı çok düşükse minimum bir değer garantile
-        if (Math.abs(ball.dy) < 2.2) {
-            ball.dy = 2.2 * Math.sign(ball.dy);
-        }
-        
-        // Topun tam sınırda kalmasını önle
-        if (ball.y <= 10) {
-            ball.y = 11;
-        } else if (ball.y >= 490) {
-            ball.y = 489;
-        }
-        
-        // Ses çal
-        playHitSound();
-        
-        // Sunucuya top durumunu gönder
-        socket.emit('ballUpdate', { dx: ball.dx, dy: ball.dy, x: ball.x, y: ball.y });
-    }
-    
-    // Sol raket çarpışması (oyuncu veya rakip)
-    if (ball.x <= 10 && 
-        ball.y >= gameState.paddles.left.y && 
-        ball.y <= gameState.paddles.left.y + 100) {
-        
-        // Paddle'ın ortasını bul
-        const paddleMiddle = gameState.paddles.left.y + 50;
-        
-        // Topun paddle ortasına göre konumunu hesapla (-50 ile +50 arası)
-        const hitRelativeToMiddle = ball.y - paddleMiddle;
-        
-        // Açıyı belirle - daha az keskin açılar
-        let angle;
-        
-        if (hitRelativeToMiddle < -40) {
-            // Üst bölüm 1 (en üst) - daha az keskin yukarı açı
-            angle = -45 * Math.PI / 180; // -70 yerine -45 derece
-        } else if (hitRelativeToMiddle < -30) {
-            // Üst bölüm 2 - daha az keskin yukarı açı
-            angle = -35 * Math.PI / 180; // -55 yerine -35 derece
-        } else if (hitRelativeToMiddle < -20) {
-            // Üst bölüm 3 - orta yukarı açı
-            angle = -25 * Math.PI / 180; // -40 yerine -25 derece
-        } else if (hitRelativeToMiddle < -10) {
-            // Üst bölüm 4 - hafif yukarı açı
-            angle = -15 * Math.PI / 180; // -25 yerine -15 derece
-        } else if (hitRelativeToMiddle < 0) {
-            // Üst bölüm 5 (ortaya yakın) - çok hafif yukarı açı
-            angle = -5 * Math.PI / 180; // -10 yerine -5 derece
-        } else if (hitRelativeToMiddle < 10) {
-            // Alt bölüm 1 (ortaya yakın) - çok hafif aşağı açı
-            angle = 5 * Math.PI / 180; // 10 yerine 5 derece
-        } else if (hitRelativeToMiddle < 20) {
-            // Alt bölüm 2 - hafif aşağı açı
-            angle = 15 * Math.PI / 180; // 25 yerine 15 derece
-        } else if (hitRelativeToMiddle < 30) {
-            // Alt bölüm 3 - orta aşağı açı
-            angle = 25 * Math.PI / 180; // 40 yerine 25 derece
-        } else if (hitRelativeToMiddle < 40) {
-            // Alt bölüm 4 - daha az keskin aşağı açı
-            angle = 35 * Math.PI / 180; // 55 yerine 35 derece
-        } else {
-            // Alt bölüm 5 (en alt) - daha az keskin aşağı açı
-            angle = 45 * Math.PI / 180; // 70 yerine 45 derece
-        }
-        
-        // Mevcut hızı hesapla
-        const currentSpeed = Math.sqrt(ball.dx * ball.dx + ball.dy * ball.dy);
-        
-        // Her vuruşta sabit %5 hızlanma (1.05)
-        const speedIncrease = 1.05; // %5 artış
-        
-        // Başlangıç hızı (5.5)
-        const initialSpeed = 5.5;
-        
-        // Maksimum hız (başlangıç hızının 2 katı) - 2.5 yerine 2
-        const maxSpeed = initialSpeed * 2.0; // Maksimum hız 11.0
-        
-        // Hızı artır ama maksimum hızı geçme
-        const speed = Math.min(Math.max(currentSpeed * speedIncrease, 7.7), maxSpeed);
-        
-        // Yeni hız bileşenlerini hesapla
-        ball.dx = Math.cos(angle) * speed;
-        ball.dy = Math.sin(angle) * speed;
-        
-        // Top her zaman sağa gitsin
-        if (ball.dx < 0) ball.dx = -ball.dx;
-        
-        // Ses çal
-        playHitSound();
-        
-        // Topun raket içine girmesini önle
-        ball.x = 10 + 10; // Paddle genişliği kadar ileri
-        
-        // Sunucuya top durumunu gönder
-        socket.emit('ballUpdate', { dx: ball.dx, dy: ball.dy, x: ball.x, y: ball.y });
-    }
-    
-    // Sağ raket çarpışması (oyuncu veya rakip)
-    if (ball.x >= 780 && 
-        ball.y >= gameState.paddles.right.y && 
-        ball.y <= gameState.paddles.right.y + 100) {
-        
-        // Paddle'ın ortasını bul
-        const paddleMiddle = gameState.paddles.right.y + 50;
-        
-        // Topun paddle ortasına göre konumunu hesapla (-50 ile +50 arası)
-        const hitRelativeToMiddle = ball.y - paddleMiddle;
-        
-        // Açıyı belirle - daha az keskin açılar
-        let angle;
-        
-        if (hitRelativeToMiddle < -40) {
-            // Üst bölüm 1 (en üst) - daha az keskin yukarı açı
-            angle = -45 * Math.PI / 180; // -70 yerine -45 derece
-        } else if (hitRelativeToMiddle < -30) {
-            // Üst bölüm 2 - daha az keskin yukarı açı
-            angle = -35 * Math.PI / 180; // -55 yerine -35 derece
-        } else if (hitRelativeToMiddle < -20) {
-            // Üst bölüm 3 - orta yukarı açı
-            angle = -25 * Math.PI / 180; // -40 yerine -25 derece
-        } else if (hitRelativeToMiddle < -10) {
-            // Üst bölüm 4 - hafif yukarı açı
-            angle = -15 * Math.PI / 180; // -25 yerine -15 derece
-        } else if (hitRelativeToMiddle < 0) {
-            // Üst bölüm 5 (ortaya yakın) - çok hafif yukarı açı
-            angle = -5 * Math.PI / 180; // -10 yerine -5 derece
-        } else if (hitRelativeToMiddle < 10) {
-            // Alt bölüm 1 (ortaya yakın) - çok hafif aşağı açı
-            angle = 5 * Math.PI / 180; // 10 yerine 5 derece
-        } else if (hitRelativeToMiddle < 20) {
-            // Alt bölüm 2 - hafif aşağı açı
-            angle = 15 * Math.PI / 180; // 25 yerine 15 derece
-        } else if (hitRelativeToMiddle < 30) {
-            // Alt bölüm 3 - orta aşağı açı
-            angle = 25 * Math.PI / 180; // 40 yerine 25 derece
-        } else if (hitRelativeToMiddle < 40) {
-            // Alt bölüm 4 - daha az keskin aşağı açı
-            angle = 35 * Math.PI / 180; // 55 yerine 35 derece
-        } else {
-            // Alt bölüm 5 (en alt) - daha az keskin aşağı açı
-            angle = 45 * Math.PI / 180; // 70 yerine 45 derece
-        }
-        
-        // Mevcut hızı hesapla
-        const currentSpeed = Math.sqrt(ball.dx * ball.dx + ball.dy * ball.dy);
-        
-        // Her vuruşta sabit %5 hızlanma (1.05)
-        const speedIncrease = 1.05; // %5 artış
-        
-        // Başlangıç hızı (5.5)
-        const initialSpeed = 5.5;
-        
-        // Maksimum hız (başlangıç hızının 2 katı) - 2.5 yerine 2
-        const maxSpeed = initialSpeed * 2.0; // Maksimum hız 11.0
-        
-        // Hızı artır ama maksimum hızı geçme
-        const speed = Math.min(Math.max(currentSpeed * speedIncrease, 7.7), maxSpeed);
-        
-        // Yeni hız bileşenlerini hesapla
-        ball.dx = Math.cos(angle) * speed;
-        ball.dy = Math.sin(angle) * speed;
-        
-        // Top her zaman sola gitsin
-        if (ball.dx > 0) ball.dx = -ball.dx;
-        
-        // Ses çal
-        playHitSound();
-        
-        // Topun raket içine girmesini önle
-        ball.x = 780 - 10; // Paddle genişliği kadar geri
-        
-        // Sunucuya top durumunu gönder
-        socket.emit('ballUpdate', { dx: ball.dx, dy: ball.dy, x: ball.x, y: ball.y });
-    }
-}
-
 // Sesleri önceden yükle
 function preloadSounds() {
     // Ses dosyalarını yükle
@@ -1663,4 +1548,51 @@ function preloadSounds() {
     // Ses dosyalarının yollarını kontrol et
     console.log('Hit sound path:', hitSound.src);
     console.log('Point sound path:', pointSound.src);
+}
+
+// Butonları sıfırlama fonksiyonu
+function resetLobbyButtons() {
+    // Rastgele eşleşme butonu
+    const randomMatchBtn = document.getElementById('randomMatchBtn');
+    if (randomMatchBtn) {
+        randomMatchBtn.disabled = false;
+        randomMatchBtn.innerHTML = 'Find Match';
+    }
+    
+    // Oda oluşturma butonu
+    const createRoomBtn = document.getElementById('createRoomBtn');
+    if (createRoomBtn) {
+        createRoomBtn.disabled = false;
+        createRoomBtn.innerHTML = 'Create Room';
+    }
+    
+    // Odaya katılma butonu
+    const joinRoomBtn = document.getElementById('joinRoomBtn');
+    if (joinRoomBtn) {
+        joinRoomBtn.disabled = false;
+        joinRoomBtn.innerHTML = 'Join Room';
+    }
+    
+    // Oda kodu giriş alanı
+    const roomCodeInput = document.getElementById('roomCodeInput');
+    if (roomCodeInput) {
+        roomCodeInput.value = '';
+    }
+    
+    // Oda kodu gösterimi
+    const roomCodeDisplay = document.getElementById('roomCodeDisplay');
+    if (roomCodeDisplay) {
+        roomCodeDisplay.style.display = 'none';
+    }
+    
+    // Chat mesajlarını temizle
+    const chatMessages = document.getElementById('chatMessages');
+    if (chatMessages) {
+        chatMessages.innerHTML = '';
+        // Sistem mesajı ekle
+        addChatMessage('System', 'Welcome to PongBattle.io! Play online or against AI.');
+    }
+    
+    // Oyuncu sayısı bilgisini güncelle
+    updatePlayerCount();
 }
